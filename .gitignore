@@ -1,0 +1,30 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# dbt
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+.user.yml
+
+# Airflow (local runtime files)
+logs/
+airflow.cfg
+*.generated
+
+# Local data dumps
+data/
+*.csv
+*.parquet
+
+# OS / editors
+.DS_Store
+.vscode/
+.idea/
