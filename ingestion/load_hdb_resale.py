@@ -14,7 +14,22 @@ PAGE_SIZE = 5000
 PAUSE_BETWEEN_PAGES = 1  # seconds; be polite to the API's rate limit
 MAX_RETRIES = 5
 
-CREATE_SCHEMA_SQL = "CREATE SCHEMA IF NOT EXISTS raw"
+SOURCE_COLUMNS = [
+    "_id",
+    "month",
+    "town",
+    "flat_type",
+    "block",
+    "street_name",
+    "storey_range",
+    "floor_area_sqm",
+    "flat_model",
+    "lease_commence_date",
+    "remaining_lease",
+    "resale_price",
+]
+
+CREATE_SCHEMA_SQL ="CREATE SCHEMA IF NOT EXISTS raw"
 
 # Raw layer: every source field stored as TEXT, exactly as the API returns it.
 # Type casting and cleaning happen later in dbt staging models.
@@ -81,15 +96,29 @@ def get_connection() -> psycopg.Connection:
     )
 
 
+def load_records(conn: psycopg.Connection, records: list[dict]) -> None:
+    """Full refresh: empty the table, then bulk-load every record with COPY."""
+    columns = ", ".join(SOURCE_COLUMNS)
+    with conn.cursor() as cur:
+        cur.execute("TRUNCATE raw.hdb_resale")
+        with cur.copy(f"COPY raw.hdb_resale ({columns}) FROM STDIN") as copy:
+            for record in records:
+                # record[col] raises KeyError if the API drops or renames a field
+                copy.write_row([record[col] for col in SOURCE_COLUMNS])
+
+
 def main() -> None:
-    # Leaving the `with` block commits the transaction (or rolls back on error).
+    # Download everything before touching the database, so the transaction
+    # below (and the table lock TRUNCATE takes) lasts seconds, not minutes.
+    records = fetch_all_records(os.environ["HDB_RESALE_RESOURCE_ID"])
+
+    # One transaction: leaving the `with` block commits; any error rolls back,
+    # leaving the previous load intact.
     with get_connection() as conn:
         conn.execute(CREATE_SCHEMA_SQL)
         conn.execute(CREATE_TABLE_SQL)
-    print("raw.hdb_resale is ready")
-
-    records = fetch_all_records(os.environ["HDB_RESALE_RESOURCE_ID"])
-    print(f"Fetched {len(records):,} rows. First row: {records[0]}")
+        load_records(conn, records)
+    print(f"Loaded {len(records):,} rows into raw.hdb_resale")
 
 
 if __name__ == "__main__":
