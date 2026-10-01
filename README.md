@@ -6,7 +6,7 @@ An end-to-end ELT pipeline that ingests Singapore HDB resale flat transactions f
 
 ---
 
-## Why this project
+<!--## Why this project -->
 
 <!-- 2–3 sentences in your own words. E.g.: HDB resale prices are a hot topic in Singapore.
 I wanted to answer questions like "which towns saw the fastest price growth?" while
@@ -113,11 +113,6 @@ docker compose --profile airflow up -d
 - What I'd change for production (cloud warehouse, secrets manager, CeleryExecutor/K8s)
 -->
 **Phase 1:** 
-     - why the load is a full refresh rather than incremental;
-     - why the download happens before the transaction (the table lock);
-     - why the raw columns are all TEXT;
-     - the offset-drift trade-off;
-     - the stale-password debugging story, which shows how Docker volumes persist.
 - Empty the table, then insert, in one transaction. Postgres's TRUNCATE (delete all rows, fast) is transactional, unlike in many other databases. If the insert fails halfway, the rollback restores the rows from the previous load too. Other sessions only ever see the complete old data or the complete new data.
 - COPY instead of INSERT. COPY is Postgres's bulk-loading command. Rows are streamed to the server in one continuous operation, instead of one INSERT statement per row, so it's usually tens of times faster. psycopg exposes it as cursor.copy().
 - Download first, then open the transaction. Main now fetches everything before connecting to the database. TRUNCATE locks the table until commit, so this keeps the lock to seconds.
