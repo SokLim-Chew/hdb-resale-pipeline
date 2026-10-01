@@ -7,3 +7,13 @@ dependencies = [
     "python-dotenv>=1.2.3",
     "requests>=2.34.2",
 ]
+
+[tool.pytest.ini_options]
+# ingestion/ holds standalone scripts, not a package; let tests import them directly
+pythonpath = ["ingestion"]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
