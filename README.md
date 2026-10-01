@@ -113,22 +113,31 @@ docker compose --profile airflow up -d
 - What I'd change for production (cloud warehouse, secrets manager, CeleryExecutor/K8s)
 -->
 **Phase 1:** 
-- Empty the table, then insert, in one transaction. Postgres's TRUNCATE (delete all rows, fast) is transactional, unlike in many other databases. If the insert fails halfway, the rollback restores the rows from the previous load too. Other sessions only ever see the complete old data or the complete new data.
-- COPY instead of INSERT. COPY is Postgres's bulk-loading command. Rows are streamed to the server in one continuous operation, instead of one INSERT statement per row, so it's usually tens of times faster. psycopg exposes it as cursor.copy().
-- Download first, then open the transaction. Main now fetches everything before connecting to the database. TRUNCATE locks the table until commit, so this keeps the lock to seconds.
 
-- every column is TEXT type - retain the original data type (the way the API returns it), type conversion happen later
+**Full refresh, not incremental.** Each run truncates and reloads the table in one transaction. The dataset has no reliable unique key and is small (~200k rows), so reloading everything is simpler and always correct; a failed run rolls back to the previous load. Trade-off: it re-downloads all data monthly. Incremental models come in Phase 3, in dbt.
+
+**ELT instead of ETL** in case there's any issue in the transform steps, we are still able to retrieve the raw data without the need for re-downloading it. Trade-off: data is not always readily consumed if transform is not set up yet.
+
+
+
+**download happens before the transaction (the table lock)** Download first, then open the transaction. TRUNCATE locks the table until commit, so this keeps the lock to seconds.
+
+**raw columns are all TEXT** Storing every value as text means the load never fails on an unexpected value, and all type conversion happens in dbt, where it's tested.
+
 - the load script handle:
   - Knowing when to stop. Stop when a page returns no records, not after a fixed number of pages.
-  - Rate limits. data.gov.sg throttles clients that send requests too fast. We'll pause briefly between
+  - Rate limits. data.gov.sg throttles clients that send requests too fast. It will pause briefly between
     pages and retry when the API replies "too many requests" (HTTP 429).
   - Offset drift. Offset pagination can skip or repeat rows if the dataset changes during the download.
     The data only updates monthly and a run takes a minute or two, so this risk is acceptable here.
-    It's worth mentioning in your "design decisions" section.
-- The postgres Docker image applies POSTGRES_USER and POSTGRES_PASSWORD only the first time it starts with an empty data directory. After that, the database lives in the warehouse_data volume, and later changes to .env are ignored. So if the container was ever started before we set the final password (for example while it was still change_me), the database kept that first password. Your script now sends the new one. The diagnose (lsof -nP -iTCP:5432 -sTCP:LISTEN) only listing a docker process - this indicates the warehouse is still empty, so nothing is lost by resetting it:
 
-  docker compose down -v
-  
-  docker compose up -d
-  - down -v stops the containers and deletes their volumes, so the database starts over. Avoid this command once real data is loaded.
-  - up -d starts a fresh container, and Postgres initializes again using the password now in .env.
+- encountered password authentication error on the first time of running the loading script:
+    - ran lsof -nP -iTCP:5432 -sTCP:LISTEN to narrow down the root cause
+    - the command only list a docker process, it ruled out another cause of Postgres using port 5432, which pointed to the stale volume as the cause
+    - tried to stop the containers and delete their volumes: docker compose down -v #Avoid this command once real data is loaded.
+    - then started a fresh container (Postgres initializes again using the password now in .env.): docker compose up -d
+    - the postgres Docker image applies POSTGRES_USER and POSTGRES_PASSWORD only the first time it starts with an empty data directory. After that, the database lives in the warehouse_data volume, and later changes to .env are ignored. So if the container was ever started before we set the final password (for example while it was still change_me), the database kept that first password.
+ 
+- Safeguards:
+      - check table rows count against the API's total count (completeness check)
+      - advancing the offset by rows received, so a smaller page than requested can't silently skip rows. 
