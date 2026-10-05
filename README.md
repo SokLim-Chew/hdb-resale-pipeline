@@ -112,19 +112,22 @@ docker compose --profile airflow up -d
 - Why the Airflow metadata DB is separate from the warehouse
 - What I'd change for production (cloud warehouse, secrets manager, CeleryExecutor/K8s)
 -->
-**Phase 1:** 
+### Phase 1:
 
-**Full refresh, not incremental.** Each run truncates and reloads the table in one transaction. The dataset has no reliable unique key and is small (~200k rows), so reloading everything is simpler and always correct; a failed run rolls back to the previous load. Trade-off: it re-downloads all data monthly. Incremental models come in Phase 3, in dbt.
+- **Full refresh, not incremental.** Each run truncates and reloads the table in one transaction. The dataset has no reliable unique key and is small (~200k rows), so reloading everything is simpler and always correct; a failed run rolls back to the previous load. Trade-off: it re-downloads all data monthly. Incremental models come in Phase 3, in dbt.
 
-**ELT instead of ETL** in case there's any issue in the transform steps, we are still able to retrieve the raw data without the need for re-downloading it. Trade-off: data is not always readily consumed if transform is not set up yet.
+- **ELT instead of ETL** (1) In case there's any issue in the transform steps, we are still able to retrieve the raw data without the need for re-downloading it. (2) Transformations become SQL that's versioned and tested in dbt, rather than logic buried in the Python script. Trade-off:      
+    - the raw data is stored in the warehouse alongside the transformed versions;
+    - the warehouse does the transformation work;
+    - any messy or sensitive data reaches the warehouse unfiltered.
 
 
 
-**download happens before the transaction (the table lock)** Download first, then open the transaction. TRUNCATE locks the table until commit, so this keeps the lock to seconds.
+- **download happens before the transaction (the table lock)** Download first, then open the transaction. TRUNCATE locks the table until commit, so this keeps the lock to seconds.
 
-**raw columns are all TEXT** Storing every value as text means the load never fails on an unexpected value, and all type conversion happens in dbt, where it's tested.
+- **raw columns are all TEXT** Storing every value as text means the load never fails on an unexpected value, and all type conversion happens in dbt, where it's tested.
 
-- the load script handle:
+- the load script handles:
   - Knowing when to stop. Stop when a page returns no records, not after a fixed number of pages.
   - Rate limits. data.gov.sg throttles clients that send requests too fast. It will pause briefly between
     pages and retry when the API replies "too many requests" (HTTP 429).
@@ -133,11 +136,14 @@ docker compose --profile airflow up -d
 
 - encountered password authentication error on the first time of running the loading script:
     - ran lsof -nP -iTCP:5432 -sTCP:LISTEN to narrow down the root cause
-    - the command only list a docker process, it ruled out another cause of Postgres using port 5432, which pointed to the stale volume as the cause
-    - tried to stop the containers and delete their volumes: docker compose down -v #Avoid this command once real data is loaded.
-    - then started a fresh container (Postgres initializes again using the password now in .env.): docker compose up -d
-    - the postgres Docker image applies POSTGRES_USER and POSTGRES_PASSWORD only the first time it starts with an empty data directory. After that, the database lives in the warehouse_data volume, and later changes to .env are ignored. So if the container was ever started before we set the final password (for example while it was still change_me), the database kept that first password.
+    - the command only list a docker process, it ruled out another Postgres instance using port 5432, which pointed to the stale volume as the cause
+    - cause: the postgres Docker image applies POSTGRES_USER and POSTGRES_PASSWORD only the first time it starts with an empty data directory. After that, the database lives in the warehouse_data volume, and later changes to .env are ignored. So if the container was ever started before we set the final password (for example while it was still change_me), the database kept that first password.
+    - tried to stop the containers and delete their volumes: ```docker compose down -v```
+    - then started a fresh container (Postgres initializes again using the password now in .env.): ```docker compose up -d```
+    - the resetting was safe as no data had been loaded yet
  
 - Safeguards:
-      - check table rows count against the API's total count (completeness check)
-      - advancing the offset by rows received, so a smaller page than requested can't silently skip rows. 
+  - compares the number of rows fetched with the API's total, before anything is written to the database (completeness check)
+  - advancing the offset by rows received, so a smaller page than requested can't silently skip rows.
+
+- Testing: the API client is unit-tested by mocking HTTP responses, so tests run without network access.
