@@ -12,31 +12,51 @@ I'm learning data engineering and building this project for my portfolio.
 
 ## Project state
 
-Portfolio ELT project: Singapore HDB resale transactions (data.gov.sg) → Postgres → dbt → Streamlit, orchestrated by Airflow. Currently a scaffold. Only `docker-compose.yml`, `.env.example` and `README.md` exist. The directories in the README's "Project structure" (`ingestion/`, `dbt/`, `dags/`, `dashboard/`, `tests/`, `docs/`) and `pyproject.toml` still need to be created, following the roadmap phases in `README.md`. Update this file as each phase lands.
+Portfolio ELT project: Singapore HDB resale transactions (data.gov.sg) → Postgres → dbt → Streamlit, orchestrated by Airflow. Follows the roadmap phases in `README.md`.
+
+- **Phase 1 (ingestion) is done:** `ingestion/load_hdb_resale.py` loads the full dataset into `raw.hdb_resale`, with unit tests in `tests/`.
+- **Phase 2 (dbt) is in progress:** `dbt-postgres` is installed; the `dbt/` project doesn't exist yet.
+- `dags/`, `dashboard/` and `docs/` don't exist yet.
+
+Update this section as each phase lands.
 
 ## Commands
 
 ```bash
-cp .env.example .env                     # required; compose reads WAREHOUSE_* from it
+cp .env.example .env                     # required; compose and the loader read WAREHOUSE_* from it
 docker compose up -d                     # warehouse only (Postgres 17, container hdb_warehouse)
 docker compose --profile airflow up -d   # + Airflow 3 standalone, UI at http://localhost:8080 (no login)
 docker compose down                      # stop, keep data
 docker compose down -v                   # stop AND wipe warehouse + Airflow metadata volumes
-```
 
-Planned (per README, once the code exists). Python is managed with uv:
-
-```bash
+uv sync                                  # create/update .venv from uv.lock
 uv run python ingestion/load_hdb_resale.py
-cd dbt && uv run dbt build
-uv run pytest                            # tests/ covers ingestion code
-mf query ...                             # MetricFlow metrics (Phase 4)
+uv run pytest                            # all tests
+uv run pytest tests/test_load_hdb_resale.py::test_retries_after_rate_limit   # single test
+
+docker exec -it hdb_warehouse psql -U hdb -d hdb_warehouse -c 'SELECT count(*), max(_loaded_at) FROM raw.hdb_resale'
 ```
+
+Planned (per README): `cd dbt && uv run dbt build` (Phase 2) and `mf query ...` for MetricFlow metrics (Phase 4).
+
+## Gotchas
+
+- **Python is pinned to 3.12** via `.python-version`, for dbt compatibility. Don't let uv pick a newer interpreter.
+- **Postgres only applies `WAREHOUSE_USER`/`WAREHOUSE_PASSWORD` the first time it starts on an empty volume.** Changing them in `.env` afterwards causes "password authentication failed". Fix it with `docker compose down -v` (wipes data), then reload.
+- **Avoid `$` in `.env` values.** Compose and python-dotenv interpolate `$` differently, so the container and the loader can end up with different passwords.
 
 ## Architecture
 
 - **Two separate Postgres instances on purpose.** `warehouse` holds the analytics data (raw → staging → marts schemas). `airflow-db` holds only Airflow metadata. Never point dbt or ingestion at `airflow-db`.
-- **ELT layering:** Python ingestion loads API rows untransformed into `raw.hdb_resale`, and all cleaning happens in dbt (`staging` → `marts`). Ingestion must be idempotent and safe to re-run, and must paginate the data.gov.sg `datastore_search` endpoint. The resource id comes from `HDB_RESALE_RESOURCE_ID` in `.env`.
-- **Host vs container connections:** from the host, connect to the warehouse at `localhost:${WAREHOUSE_PORT}` (default 5432; set 5433 if a local Postgres is running). Inside the Airflow container, use host `warehouse:5432`, or the Airflow connection `conn_id="warehouse"` (injected via `AIRFLOW_CONN_WAREHOUSE`).
+- **ELT layering:** ingestion loads API rows untransformed into `raw.hdb_resale`, with every source column as `TEXT` plus a `_loaded_at` column. All casting and cleaning belong in dbt (`staging` → `marts`), not in Python.
+- **Ingestion is an idempotent full refresh.**
+  - It pages through data.gov.sg `datastore_search`, advancing the offset by rows received.
+  - It retries HTTP 429 with exponential backoff.
+  - It fails if the row count doesn't match the API's `total`.
+  - It downloads everything into memory first, then runs `TRUNCATE` + `COPY` in one transaction, keeping the table lock short and making a failed run roll back to the previous load.
+  - `SOURCE_COLUMNS` is the contract with the API: a renamed or dropped field fails the load with a `KeyError`.
+  - Incremental loading is deliberately left for dbt in Phase 3.
+- **Tests** mock `requests.Session` and `time.sleep` with pytest's `monkeypatch`, so they need no network or database. `pyproject.toml` puts `ingestion/` on `pythonpath`, so tests `import load_hdb_resale` directly.
+- **Host vs container connections:** from the host, connect to the warehouse at `localhost:${WAREHOUSE_PORT}`. Inside the Airflow container, set `WAREHOUSE_HOST=warehouse` (the loader defaults to `localhost`), or use the Airflow connection `conn_id="warehouse"` (injected via `AIRFLOW_CONN_WAREHOUSE`).
 - **Airflow container mounts** `./dags`, `./ingestion` and `./dbt` at `/opt/airflow/{dags,ingestion,dbt}`, so DAGs should reference those container paths. The planned DAG runs ingest → `dbt build` on a monthly schedule.
 - Gitignored runtime output that should never be committed: `.env`, `dbt/target/`, `dbt/logs/`, `dbt/dbt_packages/`, `logs/`, `data/`, `*.csv` and `*.parquet`.

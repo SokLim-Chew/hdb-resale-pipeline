@@ -1,0 +1,16 @@
+name: hdb_resale
+version: "1.0.0"
+
+# Which entry in profiles.yml to connect with
+profile: hdb_resale
+
+models:
+  hdb_resale:
+    staging:
+      +schema: staging        # see macros/generate_schema_name.sql
+      +materialized: view     # light cleanup only; always reflects the latest raw load
+
+# Folders removed by `dbt clean`
+clean-targets:
+  - target
+  - dbt_packages
