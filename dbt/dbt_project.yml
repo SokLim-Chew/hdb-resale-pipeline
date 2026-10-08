@@ -6,6 +6,11 @@ profile: hdb_resale
 
 models:
   hdb_resale:
+    # Write model and column descriptions into Postgres as COMMENTs,
+    # so psql (\d+) and the dashboard see them without the docs site
+    +persist_docs:
+      relation: true
+      columns: true
     staging:
       +schema: staging        # see macros/generate_schema_name.sql
       +materialized: view     # light cleanup only; always reflects the latest raw load

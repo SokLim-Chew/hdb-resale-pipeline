@@ -7,7 +7,7 @@ Progress, changes and incidents, newest first. Dates are working-session dates. 
 | Phase | Status |
 |---|---|
 | 1. Ingestion | ✅ Done |
-| 2. Transformation (dbt) | 🚧 In progress: staging and both marts written; dbt docs remaining |
+| 2. Transformation (dbt) | 🚧 Nearly done: staging, both marts and docs built; descriptions + `persist_docs` awaiting a build |
 | 3. Advanced dbt | Not started |
 | 4. Semantic layer | Not started |
 | 5. Orchestration | Not started (Compose services already defined) |
@@ -20,8 +20,10 @@ Progress, changes and incidents, newest first. Dates are working-session dates. 
 
 ### Added
 - `fct_resale_transactions` (marts, table): one row per sale, with an explicit column list and `transaction_year`, `flat_age_years` and `remaining_lease_years`. Built and checked: 241,597 rows (D-19, D-20, D-21).
-- `mart_town_monthly_prices` (marts, table): median price and price per sqm, plus `transaction_count`, per town × flat_type × month, with grain-uniqueness and reconciliation tests (D-22, D-23). Written; full `dbt build` result pending.
+- `mart_town_monthly_prices` (marts, table): median price and price per sqm, plus `transaction_count`, per town × flat_type × month, with grain-uniqueness and reconciliation tests (D-22, D-23). Full `dbt build` passes: 3 models, all tests green.
 - `docs/`: commands, architecture, decisions and this changelog.
+- dbt docs site (`dbt docs generate` / `serve --port 8081`) working, with lineage graph.
+- Descriptions for every model, source and column; shared ones as doc blocks in `dbt/models/_column_docs.md`; `+persist_docs` writes them to Postgres comments (D-25). New `not_null` test on `stg_hdb_resale._loaded_at`.
 
 ### Changed
 - `dbt_project.yml`: `marts` folder → schema `marts`, materialized as tables (D-16).

@@ -12,22 +12,50 @@ models:
           dataset is republished; fine while the table is fully rebuilt each run.
         data_tests: [not_null, unique]
       - name: transaction_month
-        description: Month of the sale, as the first day of that month.
+        description: "{{ doc('transaction_month') }}"
         data_tests: [not_null]
       - name: transaction_year
+        description: Calendar year of the sale.
         data_tests: [not_null]
+      # Pass-through columns: described here for the docs, but already tested in staging
+      - name: town
+        description: "{{ doc('town') }}"
+      - name: flat_type
+        description: "{{ doc('flat_type') }}"
+      - name: flat_model
+        description: "{{ doc('flat_model') }}"
+      - name: block
+        description: "{{ doc('block') }}"
+      - name: street_name
+        description: "{{ doc('street_name') }}"
+      - name: storey_range
+        description: "{{ doc('storey_range') }}"
+      - name: storey_min
+        description: "{{ doc('storey_min') }}"
+      - name: storey_max
+        description: "{{ doc('storey_max') }}"
+      - name: floor_area_sqm
+        description: "{{ doc('floor_area_sqm') }}"
+      - name: lease_commence_year
+        description: "{{ doc('lease_commence_year') }}"
       - name: flat_age_years
-        description: Years between lease commencement and the sale.
+        description: >
+          Calendar years between lease start and the sale (transaction year minus
+          lease_commence_year). Can read up to a year older than the true age.
         data_tests: [not_null]
+      - name: remaining_lease_months
+        description: "{{ doc('remaining_lease_months') }}"
       - name: remaining_lease_years
         description: remaining_lease_months / 12, rounded to 1 decimal.
         data_tests: [not_null]
       - name: resale_price
-        description: Sale price in SGD.
+        description: "{{ doc('resale_price') }}"
         data_tests: [not_null]
       - name: price_per_sqm
-        description: resale_price / floor_area_sqm in SGD, rounded to 2 decimals.
+        description: "{{ doc('price_per_sqm') }}"
         data_tests: [not_null]
+      - name: _loaded_at
+        description: "{{ doc('_loaded_at') }}"
 
   - name: mart_town_monthly_prices
     description: >
@@ -36,10 +64,13 @@ models:
       Medians can't be re-aggregated: compute all-town figures from the fact table.
     columns:
       - name: transaction_month
+        description: "{{ doc('transaction_month') }}"
         data_tests: [not_null]
       - name: town
+        description: "{{ doc('town') }}"
         data_tests: [not_null]
       - name: flat_type
+        description: "{{ doc('flat_type') }}"
         data_tests: [not_null]
       - name: transaction_count
         description: Sales in the group. Small counts make the medians noisy.

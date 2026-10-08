@@ -69,6 +69,12 @@ Schema names come from `+schema:` in `dbt_project.yml`. `macros/generate_schema_
 | `fct_resale_transactions` | `not_null` + `unique` on `transaction_id`; `not_null` on derived columns and measures. Pass-through columns are already tested in staging. |
 | `mart_town_monthly_prices` | `not_null` on all columns; singular tests for grain uniqueness and reconciliation (`sum(transaction_count)` = fact row count). |
 
+## Documentation in dbt
+
+- **Every model, source and column has a description.** Descriptions shared by several models (pass-through columns like `town`) are written once as doc blocks in `dbt/models/_column_docs.md` and referenced with `{{ doc('name') }}`.
+- **`dbt docs generate` / `serve`** produce a browsable site with the lineage graph (see [commands.md](commands.md#dbt)).
+- **`+persist_docs`** (project-wide in `dbt_project.yml`) writes model and column descriptions into Postgres as `COMMENT`s on every build, so they're visible in psql (`\d+`) and to any tool reading the warehouse. It doesn't apply to the `raw` source, which dbt doesn't build.
+
 ## Configuration and connections
 
 Every setting lives in `.env` (gitignored; template in `.env.example`) and is read by three consumers:

@@ -9,3 +9,32 @@ sources:
         description: >
           HDB resale flat transactions from data.gov.sg (Jan 2017 onwards).
           Full-refreshed on each load; every source column is TEXT.
+        columns:
+          - name: _id
+            description: Row id assigned by data.gov.sg. Not stable across dataset republishes.
+          - name: month
+            description: Month of sale, 'YYYY-MM'.
+          - name: town
+            description: HDB town.
+          - name: flat_type
+            description: Number of rooms or flat category.
+          - name: flat_model
+            description: HDB design model.
+          - name: block
+            description: Block number.
+          - name: street_name
+            description: Street name.
+          - name: storey_range
+            description: Storey band, e.g. '01 TO 03'.
+          - name: floor_area_sqm
+            description: Floor area in square metres, 0–2 decimals (e.g. '31', '31.00', '60.3').
+          - name: lease_commence_date
+            description: Year the lease started, e.g. '1966'. Only a year, despite the name.
+          - name: remaining_lease
+            description: >
+              Text in four formats: '61 years 04 months', '61 years',
+              '61 years 01 month', '61 years 0 months'.
+          - name: resale_price
+            description: Sale price in SGD; a few values have decimals (e.g. '288888.88').
+          - name: _loaded_at
+            description: "{{ doc('_loaded_at') }}"

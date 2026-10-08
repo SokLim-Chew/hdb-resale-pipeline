@@ -15,7 +15,7 @@ All commands run from the repo root unless a section says otherwise. dbt command
 - [dbt](#dbt)
 - [Git workflow](#git-workflow)
 - [Troubleshooting](#troubleshooting)
-- [Planned: Phases 2–7](#planned-phases-27)
+- [Planned: Phases 3–7](#planned-phases-37)
 
 ---
 
@@ -88,7 +88,7 @@ To run a single statement without opening a session, add `-c '<SQL>'`:
 ```bash
 docker exec -it hdb_warehouse psql -U hdb -d hdb_warehouse -c '\d raw.hdb_resale'
 ```
-`\d <table>` describes a table's columns. Other useful psql commands: `\dn` lists schemas, `\dt <schema>.*` lists tables, `\dv <schema>.*` lists views.
+`\d <table>` describes a table's columns; `\d+ <table>` also shows each column's description, which dbt writes as Postgres comments (`persist_docs`). Other useful psql commands: `\dn` lists schemas, `\dt <schema>.*` lists tables, `\dv <schema>.*` lists views.
 
 ### Useful queries
 
@@ -175,6 +175,8 @@ cd dbt
 | `uv run --env-file ../.env dbt build --select stg_hdb_resale+` | `+` after the name: the model **and everything downstream** of it. |
 | `uv run --env-file ../.env dbt build` | Builds every model and runs every test, in dependency order. A failing test skips the models that depend on it. |
 | `uv run dbt clean` | Deletes `target/` and `dbt_packages/` (the `clean-targets` in `dbt_project.yml`). |
+| `uv run --env-file ../.env dbt docs generate` | Builds the docs site into `target/`: `manifest.json` (project), `catalog.json` (column types and stats from Postgres), `index.html`. |
+| `uv run --env-file ../.env dbt docs serve --port 8081` | Serves the docs site and opens the browser. Stop with Ctrl+C. Port 8081 because Airflow uses 8080. The lineage graph is the icon at the bottom right. |
 
 **Seeing the SQL dbt actually ran:** `dbt/target/run/hdb_resale/models/<folder>/<model>.sql`. The compiled `SELECT` alone is under `dbt/target/compiled/`.
 
@@ -238,16 +240,9 @@ lsof -nP -iTCP:5432 -sTCP:LISTEN
 
 ---
 
-## Planned: Phases 2–7
+## Planned: Phases 3–7
 
 These are the expected commands. Confirm and move each one into the sections above once its phase is built.
-
-### Phase 2: dbt docs
-```bash
-uv run --env-file ../.env dbt docs generate        # builds the docs site + lineage graph into target/
-uv run --env-file ../.env dbt docs serve --port 8081
-```
-`docs serve` defaults to port 8080, which Airflow uses in Phase 5, hence `--port 8081`.
 
 ### Phase 3: advanced dbt
 ```bash

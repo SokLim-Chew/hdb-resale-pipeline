@@ -15,7 +15,7 @@ I'm learning data engineering and building this project for my portfolio.
 Portfolio ELT project: Singapore HDB resale transactions (data.gov.sg) → Postgres → dbt → Streamlit, orchestrated by Airflow. Follows the roadmap phases in `README.md`.
 
 - **Phase 1 (ingestion) is done:** `ingestion/load_hdb_resale.py` loads the full dataset into `raw.hdb_resale`, with unit tests in `tests/`.
-- **Phase 2 (dbt) is in progress:** `dbt/` has the `raw` source, `stg_hdb_resale`, `fct_resale_transactions` and `mart_town_monthly_prices`, with tests. dbt docs are next.
+- **Phase 2 (dbt) is in progress:** `dbt/` has the `raw` source, `stg_hdb_resale`, `fct_resale_transactions` and `mart_town_monthly_prices`, with tests, full descriptions (shared ones as doc blocks in `dbt/models/_column_docs.md`) and `persist_docs`. Phase 3 is next.
 - `dags/` and `dashboard/` don't exist yet.
 
 Update this section as each phase lands.

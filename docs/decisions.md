@@ -6,7 +6,7 @@ A log of the significant choices in this project. Each entry gives the decision,
 
 - **Platform:** [D-01](#d-01-elt-not-etl) · [D-02](#d-02-separate-postgres-for-airflow-metadata) · [D-03](#d-03-airflow-standalone-in-one-container) · [D-04](#d-04-uv-with-python-pinned-to-312) · [D-05](#d-05-all-configuration-in-env)
 - **Ingestion:** [D-06](#d-06-full-refresh-not-incremental) · [D-07](#d-07-download-everything-then-load-in-one-short-transaction) · [D-08](#d-08-copy-not-insert) · [D-09](#d-09-raw-columns-are-all-text) · [D-10](#d-10-offset-pagination-with-safeguards) · [D-11](#d-11-retry-only-http-429-with-exponential-backoff) · [D-12](#d-12-source_columns-is-the-contract-with-the-api) · [D-13](#d-13-unit-tests-with-a-hand-written-fake-session)
-- **dbt:** [D-14](#d-14-profilesyml-in-the-repo-secrets-via-env_var) · [D-15](#d-15-override-generate_schema_name) · [D-16](#d-16-staging-as-views-marts-as-tables) · [D-17](#d-17-profile-the-raw-data-before-writing-staging) · [D-18](#d-18-test-severity-error-for-wrong-output-warn-for-human-decisions) · [D-19](#d-19-wide-fact-table-no-dimensions-yet) · [D-20](#d-20-transaction_id--source-row-id-for-now) · [D-21](#d-21-explicit-column-lists-in-marts) · [D-22](#d-22-medians-with-transaction-counts) · [D-23](#d-23-grain-and-reconciliation-tests-on-aggregates)
+- **dbt:** [D-14](#d-14-profilesyml-in-the-repo-secrets-via-env_var) · [D-15](#d-15-override-generate_schema_name) · [D-16](#d-16-staging-as-views-marts-as-tables) · [D-17](#d-17-profile-the-raw-data-before-writing-staging) · [D-18](#d-18-test-severity-error-for-wrong-output-warn-for-human-decisions) · [D-19](#d-19-wide-fact-table-no-dimensions-yet) · [D-20](#d-20-transaction_id--source-row-id-for-now) · [D-21](#d-21-explicit-column-lists-in-marts) · [D-22](#d-22-medians-with-transaction-counts) · [D-23](#d-23-grain-and-reconciliation-tests-on-aggregates) · [D-25](#d-25-shared-doc-blocks-persisted-to-postgres)
 - **Workflow:** [D-24](#d-24-feature-branches-pull-requests-merge-commits)
 
 ---
@@ -137,6 +137,12 @@ A log of the significant choices in this project. Each entry gives the decision,
 ### D-23: Grain and reconciliation tests on aggregates
 **Phase 2.** Singular tests check that town + flat_type + month is unique, and that `sum(transaction_count)` equals the fact table's row count.
 - **Why:** These prove the aggregation neither drops nor double-counts sales. They're singular tests because dbt's built-in generic tests check one column at a time (`dbt_utils` offers a ready-made test; packages come in Phase 3).
+
+### D-25: Shared doc blocks, persisted to Postgres
+**Phase 2.** Shared column descriptions live once in `dbt/models/_column_docs.md` and are referenced with `{{ doc() }}`; `+persist_docs` writes all descriptions into Postgres as comments.
+- **Why:** Pass-through columns appear in two or three models; one definition can't drift out of sync. Persisting the descriptions puts the documentation where the data is used (psql, the dashboard, any BI tool), not only on the docs site.
+- **Alternatives:** Inline descriptions repeated per model; YAML anchors (only work within one file).
+- **Trade-off:** Descriptions are one indirection away from the YAML; each build also issues `COMMENT` statements (negligible here).
 
 ## Workflow
 
