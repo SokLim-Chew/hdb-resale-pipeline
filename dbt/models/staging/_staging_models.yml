@@ -10,10 +10,10 @@ models:
         description: data.gov.sg row id. Traceability only; not stable across dataset republishes.
         data_tests: [not_null, unique]
       - name: transaction_month
-        description: Month of the sale, as the first day of that month.
+        description: "{{ doc('transaction_month') }}"
         data_tests: [not_null]
       - name: town
-        description: HDB town. New towns (e.g. Tengah) are legitimate, so unknown values only warn.
+        description: "{{ doc('town') }}"
         data_tests:
           - not_null
           - accepted_values:
@@ -48,7 +48,7 @@ models:
               config:
                 severity: warn
       - name: flat_type
-        description: Number of rooms or flat category. Marts group by this, so unknown values fail the build.
+        description: "{{ doc('flat_type') }}"
         data_tests:
           - not_null
           - accepted_values:
@@ -62,7 +62,7 @@ models:
                   - EXECUTIVE
                   - MULTI-GENERATION
       - name: flat_model
-        description: HDB design model. HDB occasionally adds models, so unknown values only warn.
+        description: "{{ doc('flat_model') }}"
         data_tests:
           - not_null
           - accepted_values:
@@ -92,26 +92,35 @@ models:
               config:
                 severity: warn
       - name: block
+        description: "{{ doc('block') }}"
         data_tests: [not_null]
       - name: street_name
+        description: "{{ doc('street_name') }}"
         data_tests: [not_null]
       - name: storey_range
-        description: Original label, e.g. '01 TO 03'.
+        description: "{{ doc('storey_range') }}"
         data_tests: [not_null]
       - name: storey_min
+        description: "{{ doc('storey_min') }}"
         data_tests: [not_null]
       - name: storey_max
+        description: "{{ doc('storey_max') }}"
         data_tests: [not_null]
       - name: floor_area_sqm
+        description: "{{ doc('floor_area_sqm') }}"
         data_tests: [not_null]
       - name: lease_commence_year
+        description: "{{ doc('lease_commence_year') }}"
         data_tests: [not_null]
       - name: remaining_lease_months
-        description: Remaining lease at time of sale, in months. NULL would mean an unrecognised source format.
+        description: "{{ doc('remaining_lease_months') }}"
         data_tests: [not_null]
       - name: resale_price
-        description: Sale price in SGD.
+        description: "{{ doc('resale_price') }}"
         data_tests: [not_null]
       - name: price_per_sqm
-        description: resale_price / floor_area_sqm, rounded to 2 decimals.
+        description: "{{ doc('price_per_sqm') }}"
+        data_tests: [not_null]
+      - name: _loaded_at
+        description: "{{ doc('_loaded_at') }}"
         data_tests: [not_null]

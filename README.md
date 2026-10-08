@@ -83,12 +83,24 @@ docker compose up -d
 # 2. Load raw data
 uv run python ingestion/load_hdb_resale.py
 
-# 3. Build dbt models
-cd dbt && uv run dbt build
+# 3. Build dbt models (dbt doesn't read .env itself, so pass it in)
+cd dbt && uv run --env-file ../.env dbt build && cd ..
 
 # 4. (Optional) Start Airflow -> http://localhost:8080
 docker compose --profile airflow up -d
+
+# 5. Open a psql session
+docker exec -it hdb_warehouse psql -U hdb -d hdb_warehouse
+
+
 ```
+
+## Documentation
+
+- [Commands](docs/commands.md): every command used, by task, including planned ones per phase
+- [Architecture](docs/architecture.md): data flow, warehouse layers, models, data quality checks, configuration
+- [Design decisions](docs/decisions.md): what was chosen, why, alternatives and trade-offs
+- [Changelog](docs/changelog.md): progress, findings and incidents by date
 
 ## Roadmap
 

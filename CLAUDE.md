@@ -15,10 +15,21 @@ I'm learning data engineering and building this project for my portfolio.
 Portfolio ELT project: Singapore HDB resale transactions (data.gov.sg) → Postgres → dbt → Streamlit, orchestrated by Airflow. Follows the roadmap phases in `README.md`.
 
 - **Phase 1 (ingestion) is done:** `ingestion/load_hdb_resale.py` loads the full dataset into `raw.hdb_resale`, with unit tests in `tests/`.
-- **Phase 2 (dbt) is in progress:** `dbt/` has the `raw` source, the `stg_hdb_resale` staging model and its tests. Marts and docs are next.
-- `dags/`, `dashboard/` and `docs/` don't exist yet.
+- **Phase 2 (dbt) is in progress:** `dbt/` has the `raw` source, `stg_hdb_resale`, `fct_resale_transactions` and `mart_town_monthly_prices`, with tests, full descriptions (shared ones as doc blocks in `dbt/models/_column_docs.md`) and `persist_docs`. Phase 3 is next.
+- `dags/` and `dashboard/` don't exist yet.
 
 Update this section as each phase lands.
+
+## Project documentation
+
+`docs/` holds the project's living documentation. Update it as part of each step, not afterwards:
+
+- `docs/commands.md`: add every new command with a one-line explanation; move **(planned)** commands into the main sections once they're confirmed working.
+- `docs/architecture.md`: update when models, schemas, components or configuration change.
+- `docs/decisions.md`: add a D-xx entry for each significant design choice (why, alternatives, trade-off). Never rewrite old entries; mark them superseded.
+- `docs/changelog.md`: add dated entries for what changed, findings and incidents; keep the status table current.
+
+The README's "What I learned / design decisions" section is written by the user in their own words; don't edit it.
 
 ## Commands
 
@@ -46,7 +57,7 @@ uv run --env-file ../.env dbt build                         # all models + tests
 uv run --env-file ../.env dbt build --select stg_hdb_resale # one model + its tests
 ```
 
-Planned (per README): `mf query ...` for MetricFlow metrics (Phase 4).
+Full command reference, including planned ones per phase: `docs/commands.md`.
 
 ## Gotchas
 
