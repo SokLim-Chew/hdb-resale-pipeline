@@ -1,0 +1,117 @@
+version: 2
+
+models:
+  - name: stg_hdb_resale
+    description: >
+      One row per HDB resale transaction. Typed and renamed from raw.hdb_resale;
+      remaining_lease and storey_range parsed into numbers.
+    columns:
+      - name: source_row_id
+        description: data.gov.sg row id. Traceability only; not stable across dataset republishes.
+        data_tests: [not_null, unique]
+      - name: transaction_month
+        description: Month of the sale, as the first day of that month.
+        data_tests: [not_null]
+      - name: town
+        description: HDB town. New towns (e.g. Tengah) are legitimate, so unknown values only warn.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - ANG MO KIO
+                  - BEDOK
+                  - BISHAN
+                  - BUKIT BATOK
+                  - BUKIT MERAH
+                  - BUKIT PANJANG
+                  - BUKIT TIMAH
+                  - CENTRAL AREA
+                  - CHOA CHU KANG
+                  - CLEMENTI
+                  - GEYLANG
+                  - HOUGANG
+                  - JURONG EAST
+                  - JURONG WEST
+                  - KALLANG/WHAMPOA
+                  - MARINE PARADE
+                  - PASIR RIS
+                  - PUNGGOL
+                  - QUEENSTOWN
+                  - SEMBAWANG
+                  - SENGKANG
+                  - SERANGOON
+                  - TAMPINES
+                  - TOA PAYOH
+                  - WOODLANDS
+                  - YISHUN
+              config:
+                severity: warn
+      - name: flat_type
+        description: Number of rooms or flat category. Marts group by this, so unknown values fail the build.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - 1 ROOM
+                  - 2 ROOM
+                  - 3 ROOM
+                  - 4 ROOM
+                  - 5 ROOM
+                  - EXECUTIVE
+                  - MULTI-GENERATION
+      - name: flat_model
+        description: HDB design model. HDB occasionally adds models, so unknown values only warn.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - 2-room
+                  - 3Gen
+                  - Adjoined flat
+                  - Apartment
+                  - DBSS
+                  - Improved
+                  - Improved-Maisonette
+                  - Maisonette
+                  - Model A
+                  - Model A2
+                  - Model A-Maisonette
+                  - Multi Generation
+                  - New Generation
+                  - Premium Apartment
+                  - Premium Apartment Loft
+                  - Premium Maisonette
+                  - Simplified
+                  - Standard
+                  - Terrace
+                  - Type S1
+                  - Type S2
+              config:
+                severity: warn
+      - name: block
+        data_tests: [not_null]
+      - name: street_name
+        data_tests: [not_null]
+      - name: storey_range
+        description: Original label, e.g. '01 TO 03'.
+        data_tests: [not_null]
+      - name: storey_min
+        data_tests: [not_null]
+      - name: storey_max
+        data_tests: [not_null]
+      - name: floor_area_sqm
+        data_tests: [not_null]
+      - name: lease_commence_year
+        data_tests: [not_null]
+      - name: remaining_lease_months
+        description: Remaining lease at time of sale, in months. NULL would mean an unrecognised source format.
+        data_tests: [not_null]
+      - name: resale_price
+        description: Sale price in SGD.
+        data_tests: [not_null]
+      - name: price_per_sqm
+        description: resale_price / floor_area_sqm, rounded to 2 decimals.
+        data_tests: [not_null]

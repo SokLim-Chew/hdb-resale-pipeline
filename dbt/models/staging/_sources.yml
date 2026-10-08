@@ -1,0 +1,11 @@
+version: 2
+
+sources:
+  - name: raw
+    schema: raw
+    description: Untransformed data loaded by ingestion/load_hdb_resale.py.
+    tables:
+      - name: hdb_resale
+        description: >
+          HDB resale flat transactions from data.gov.sg (Jan 2017 onwards).
+          Full-refreshed on each load; every source column is TEXT.
