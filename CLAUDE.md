@@ -15,7 +15,7 @@ I'm learning data engineering and building this project for my portfolio.
 Portfolio ELT project: Singapore HDB resale transactions (data.gov.sg) → Postgres → dbt → Streamlit, orchestrated by Airflow. Follows the roadmap phases in `README.md`.
 
 - **Phase 1 (ingestion) is done:** `ingestion/load_hdb_resale.py` loads the full dataset into `raw.hdb_resale`, with unit tests in `tests/`.
-- **Phase 2 (dbt) is in progress:** `dbt-postgres` is installed; the `dbt/` project doesn't exist yet.
+- **Phase 2 (dbt) is in progress:** `dbt/` has the `raw` source, the `stg_hdb_resale` staging model and its tests. Marts and docs are next.
 - `dags/`, `dashboard/` and `docs/` don't exist yet.
 
 Update this section as each phase lands.
@@ -37,7 +37,16 @@ uv run pytest tests/test_load_hdb_resale.py::test_retries_after_rate_limit   # s
 docker exec -it hdb_warehouse psql -U hdb -d hdb_warehouse -c 'SELECT count(*), max(_loaded_at) FROM raw.hdb_resale'
 ```
 
-Planned (per README): `cd dbt && uv run dbt build` (Phase 2) and `mf query ...` for MetricFlow metrics (Phase 4).
+dbt runs from inside `dbt/`. It doesn't read `.env` itself, and `dbt/profiles.yml` takes all connection settings from the `WAREHOUSE_*` variables:
+
+```bash
+cd dbt
+uv run --env-file ../.env dbt debug                         # check config + connection
+uv run --env-file ../.env dbt build                         # all models + tests
+uv run --env-file ../.env dbt build --select stg_hdb_resale # one model + its tests
+```
+
+Planned (per README): `mf query ...` for MetricFlow metrics (Phase 4).
 
 ## Gotchas
 
