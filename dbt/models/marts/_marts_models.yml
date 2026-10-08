@@ -1,0 +1,52 @@
+version: 2
+
+models:
+  - name: fct_resale_transactions
+    description: >
+      One row per HDB resale transaction, with business-ready derived columns.
+      Public interface for the dashboard and downstream marts.
+    columns:
+      - name: transaction_id
+        description: >
+          data.gov.sg row id. Unique within a load, but not guaranteed stable if the
+          dataset is republished; fine while the table is fully rebuilt each run.
+        data_tests: [not_null, unique]
+      - name: transaction_month
+        description: Month of the sale, as the first day of that month.
+        data_tests: [not_null]
+      - name: transaction_year
+        data_tests: [not_null]
+      - name: flat_age_years
+        description: Years between lease commencement and the sale.
+        data_tests: [not_null]
+      - name: remaining_lease_years
+        description: remaining_lease_months / 12, rounded to 1 decimal.
+        data_tests: [not_null]
+      - name: resale_price
+        description: Sale price in SGD.
+        data_tests: [not_null]
+      - name: price_per_sqm
+        description: resale_price / floor_area_sqm in SGD, rounded to 2 decimals.
+        data_tests: [not_null]
+
+  - name: mart_town_monthly_prices
+    description: >
+      Median resale prices per town x flat_type x month. Grain uniqueness and
+      reconciliation with fct_resale_transactions are tested in dbt/tests/.
+      Medians can't be re-aggregated: compute all-town figures from the fact table.
+    columns:
+      - name: transaction_month
+        data_tests: [not_null]
+      - name: town
+        data_tests: [not_null]
+      - name: flat_type
+        data_tests: [not_null]
+      - name: transaction_count
+        description: Sales in the group. Small counts make the medians noisy.
+        data_tests: [not_null]
+      - name: median_resale_price
+        description: Median sale price in SGD, rounded to the dollar.
+        data_tests: [not_null]
+      - name: median_price_per_sqm
+        description: Median price per sqm in SGD, rounded to 2 decimals.
+        data_tests: [not_null]

@@ -9,6 +9,9 @@ models:
     staging:
       +schema: staging        # see macros/generate_schema_name.sql
       +materialized: view     # light cleanup only; always reflects the latest raw load
+    marts:
+      +schema: marts
+      +materialized: table    # public interface for the dashboard; stored for fast reads
 
 # Folders removed by `dbt clean`
 clean-targets:
