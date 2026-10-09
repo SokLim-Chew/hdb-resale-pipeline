@@ -13,12 +13,17 @@ flowchart LR
         STG[(staging.stg_hdb_resale<br/>view)]
         FCT[(marts.fct_resale_transactions<br/>table)]
         AGG[(marts.mart_town_monthly_prices<br/>table)]
+        SEED[(seeds.town_regions<br/>CSV seed)]
+        DIM[(marts.dim_town<br/>table)]
     end
 
     API -->|ingestion/load_hdb_resale.py<br/>paginate · TRUNCATE + COPY| RAW
     RAW -->|dbt: cast, rename, parse| STG
     STG -->|dbt: business columns| FCT
     FCT -->|dbt: medians per town × flat type × month| AGG
+    STG -->|distinct towns| DIM
+    SEED -->|region| DIM
+    DIM -->|region label| AGG
     AGG -.->|Phase 6| DASH[Streamlit dashboard]
 
     AF[Airflow · Phase 5] -.->|monthly: ingest, then dbt build| API
@@ -47,7 +52,8 @@ The warehouse database has one schema per layer. Each layer only reads from the 
 |---|---|---|---|
 | `raw` | Python loader | table | Source data exactly as the API returned it, plus `_loaded_at`. Full-refreshed on every load. |
 | `staging` | dbt (`models/staging/`) | view | One model per source table: rename, cast types, parse text fields. No joins or aggregation. |
-| `marts` | dbt (`models/marts/`) | table | Business-facing models the dashboard reads: facts and aggregates. |
+| `marts` | dbt (`models/marts/`) | table | Business-facing models the dashboard reads: facts, dimensions and aggregates. |
+| `seeds` | dbt (`seeds/*.csv`) | table | Hand-maintained reference data, versioned in git. Currently `town_regions`. |
 
 Schema names come from `+schema:` in `dbt_project.yml`. `macros/generate_schema_name.sql` makes dbt use them as-is (`staging`, not dbt's default `analytics_staging`). The profile's default schema, `analytics`, only applies to models with no `+schema`.
 
@@ -58,7 +64,9 @@ Schema names come from `+schema:` in `dbt_project.yml`. `macros/generate_schema_
 | `raw.hdb_resale` (source) | API record | `_id`, 11 source fields, `_loaded_at` | Every column `TEXT`. |
 | `stg_hdb_resale` | transaction | `source_row_id` | `transaction_month` (date), `storey_min`/`storey_max`, `remaining_lease_months` (all 4 source formats parsed), `resale_price` as `numeric` (some prices have decimals), `price_per_sqm`. |
 | `fct_resale_transactions` | transaction | `transaction_id` | Explicit column list (public interface). Adds `transaction_year`, `flat_age_years`, `remaining_lease_years`. |
-| `mart_town_monthly_prices` | town × flat_type × month | (`transaction_month`, `town`, `flat_type`) | `transaction_count`, `median_resale_price`, `median_price_per_sqm`. Medians can't be re-aggregated across towns or types. |
+| `town_regions` (seed) | town | `town` | Town → URA planning region (5 regions). Add a row when a new town appears. |
+| `dim_town` | town | `town` | Every town found in the data, left-joined to the seed for `region`. |
+| `mart_town_monthly_prices` | town × flat_type × month | (`transaction_month`, `town`, `flat_type`) | `region` (from `dim_town`, a filter label), `transaction_count`, `median_resale_price`, `median_price_per_sqm`. Medians can't be re-aggregated across towns, regions or types. |
 
 ## Data quality checks
 
@@ -67,6 +75,9 @@ Schema names come from `+schema:` in `dbt_project.yml`. `macros/generate_schema_
 | Loader | Row count fetched must equal the API's `total`, checked before writing; a missing source field raises a `KeyError` (`SOURCE_COLUMNS`). |
 | `stg_hdb_resale` | `not_null` on every column; `unique` on `source_row_id`; `accepted_values` on `flat_type` (**error**), `town` and `flat_model` (**warn**); singular test `assert_stg_hdb_resale_values_in_range` (lease 0–1188 months, positive price and area, `storey_min <= storey_max`). |
 | `fct_resale_transactions` | `not_null` + `unique` on `transaction_id`; `not_null` on derived columns and measures. Pass-through columns are already tested in staging. |
+| `town_regions` seed | `not_null` + `unique` on `town`; `region` in the 5 URA regions. |
+| `dim_town` | `unique` town; `not_null` region (**error**): a town missing from the seed stops the build until its row is added. |
+| Unit tests (logic, not data) | `stg_hdb_resale`: all 4 `remaining_lease` formats; storey, price and `price_per_sqm` parsing. `mart_town_monthly_prices`: median not average, even-count midpoint. `dim_town`: a town missing from the seed keeps its row with a NULL region. Defined in `_staging_unit_tests.yml` / `_marts_unit_tests.yml`. |
 | `mart_town_monthly_prices` | `not_null` on all columns; singular tests for grain uniqueness and reconciliation (`sum(transaction_count)` = fact row count). |
 
 ## Documentation in dbt
@@ -112,7 +123,8 @@ Every setting lives in `.env` (gitignored; template in `.env.example`) and is re
 ├── dbt/
 │   ├── dbt_project.yml       # per-folder schema + materialization
 │   ├── profiles.yml          # connection via env_var(), no secrets
-│   ├── macros/               # generate_schema_name override
+│   ├── seeds/                # hand-maintained reference CSVs (town_regions)
+│   ├── macros/               # median(); generate_schema_name override; _macros.yml docs
 │   ├── models/staging/       # _sources.yml, stg_ models, _staging_models.yml
 │   ├── models/marts/         # fct_ / mart_ models, _marts_models.yml
 │   └── tests/                # dbt singular tests (SQL returning bad rows)

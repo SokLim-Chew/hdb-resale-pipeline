@@ -57,6 +57,20 @@ models:
       - name: _loaded_at
         description: "{{ doc('_loaded_at') }}"
 
+  - name: dim_town
+    description: >
+      One row per HDB town found in the data, with its URA planning region
+      from the town_regions seed.
+    columns:
+      - name: town
+        description: "{{ doc('town') }}"
+        data_tests: [not_null, unique]
+      - name: region
+        description: >
+          {{ doc('region') }} NULL means the town is missing from
+          seeds/town_regions.csv; the test fails the build until a row is added.
+        data_tests: [not_null]
+
   - name: mart_town_monthly_prices
     description: >
       Median resale prices per town x flat_type x month. Grain uniqueness and
@@ -68,6 +82,9 @@ models:
         data_tests: [not_null]
       - name: town
         description: "{{ doc('town') }}"
+        data_tests: [not_null]
+      - name: region
+        description: "{{ doc('region') }} A filter label only: medians can't be combined into regional figures."
         data_tests: [not_null]
       - name: flat_type
         description: "{{ doc('flat_type') }}"

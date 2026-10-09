@@ -1,0 +1,18 @@
+version: 2
+
+seeds:
+  - name: town_regions
+    description: >
+      Maps each HDB town to its URA planning region. Maintained by hand:
+      when a new town appears (e.g. Tengah), add a row here.
+    columns:
+      - name: town
+        description: "{{ doc('town') }}"
+        data_tests: [not_null, unique]
+      - name: region
+        description: "{{ doc('region') }}"
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [Central, East, North, North-East, West]

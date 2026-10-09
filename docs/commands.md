@@ -169,11 +169,16 @@ cd dbt
 | `uv run dbt --version` | Shows installed dbt Core and adapter versions. |
 | `uv run --env-file ../.env dbt debug` | Validates `dbt_project.yml` and `profiles.yml` and tests the database connection. Builds nothing. |
 | `uv run --env-file ../.env dbt ls --resource-type source` | Lists sources dbt has found. `dbt ls` lists project resources without running anything. |
+| `uv run --env-file ../.env dbt compile --select <model>` | Renders the model's Jinja (refs, macros) into plain SQL in `target/compiled/` without running it. Use it to check what a macro produces. |
 | `uv run --env-file ../.env dbt run --select stg_hdb_resale` | Builds one model, without tests. |
 | `uv run --env-file ../.env dbt build --select stg_hdb_resale` | Builds one model **and** runs its tests, including singular tests that `ref()` it. |
 | `uv run --env-file ../.env dbt build --select +fct_resale_transactions` | `+` before the name: the model **and everything upstream** of it. |
 | `uv run --env-file ../.env dbt build --select stg_hdb_resale+` | `+` after the name: the model **and everything downstream** of it. |
-| `uv run --env-file ../.env dbt build` | Builds every model and runs every test, in dependency order. A failing test skips the models that depend on it. |
+| `uv run --env-file ../.env dbt build` | Loads seeds, builds every model and runs every test, in dependency order. A failing test skips the models that depend on it. |
+| `uv run --env-file ../.env dbt test --select test_type:unit` | Runs only the unit tests (hand-written rows, no real data). `dbt build` also runs each model's unit tests before building it. |
+| `uv run --env-file ../.env dbt test --select test_type:data` | Runs only data tests against the built tables. |
+| `uv run --env-file ../.env dbt seed` | Loads only the CSVs in `dbt/seeds/` into the `seeds` schema (replacing their contents). |
+| `uv run --env-file ../.env dbt build --select town_regions+` | Reloads the seed and rebuilds everything that depends on it, e.g. after adding a town. |
 | `uv run dbt clean` | Deletes `target/` and `dbt_packages/` (the `clean-targets` in `dbt_project.yml`). |
 | `uv run --env-file ../.env dbt docs generate` | Builds the docs site into `target/`: `manifest.json` (project), `catalog.json` (column types and stats from Postgres), `index.html`. |
 | `uv run --env-file ../.env dbt docs serve --port 8081` | Serves the docs site and opens the browser. Stop with Ctrl+C. Port 8081 because Airflow uses 8080. The lineage graph is the icon at the bottom right. |
@@ -246,10 +251,8 @@ These are the expected commands. Confirm and move each one into the sections abo
 
 ### Phase 3: advanced dbt
 ```bash
-uv run --env-file ../.env dbt seed                          # load CSVs in dbt/seeds/ (town -> region mapping)
 uv run --env-file ../.env dbt snapshot                      # record SCD Type 2 history
 uv run --env-file ../.env dbt build --full-refresh          # rebuild incremental models from scratch
-uv run --env-file ../.env dbt test --select test_type:unit  # run only dbt unit tests
 uv run --env-file ../.env dbt deps                          # install packages from packages.yml (e.g. dbt_utils)
 ```
 

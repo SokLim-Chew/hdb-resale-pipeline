@@ -1,0 +1,19 @@
+version: 2
+
+macros:
+  - name: median
+    description: >
+      Median of a column, rounded. Wraps Postgres's percentile_cont(0.5), which has
+      no median() shorthand and returns double precision. Aggregate: use with GROUP BY.
+    arguments:
+      - name: column_name
+        type: string
+        description: Column (or SQL expression) to take the median of.
+      - name: decimals
+        type: integer
+        description: Decimal places to round to. Default 0.
+
+  - name: generate_schema_name
+    description: >
+      Overrides dbt's built-in: uses a model's custom schema as-is (staging, marts)
+      instead of prefixing it with the profile's schema. See docs/decisions.md D-15.

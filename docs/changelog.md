@@ -7,8 +7,8 @@ Progress, changes and incidents, newest first. Dates are working-session dates. 
 | Phase | Status |
 |---|---|
 | 1. Ingestion | ✅ Done |
-| 2. Transformation (dbt) | 🚧 Nearly done: staging, both marts and docs built; descriptions + `persist_docs` awaiting a build |
-| 3. Advanced dbt | Not started |
+| 2. Transformation (dbt) | ✅ Done |
+| 3. Advanced dbt | 🚧 In progress: seeds ✅ · macros ✅ · unit tests ✍️ · contracts · incremental · snapshots |
 | 4. Semantic layer | Not started |
 | 5. Orchestration | Not started (Compose services already defined) |
 | 6. Serving | Not started |
@@ -16,7 +16,30 @@ Progress, changes and incidents, newest first. Dates are working-session dates. 
 
 ---
 
+## 2026-10-09
+
+### Added
+- Phase 3 started on branch `phase3-advanced-dbt`. Planned order: seeds → macros → unit tests → contracts → incremental → snapshots.
+- Seed `town_regions` (26 towns → 5 URA regions, mapping verified against URA), with tests (D-26).
+- `dim_town` (marts, table): distinct towns from the data, left-joined to the seed; `not_null` region as an error.
+- `region` doc block in `_column_docs.md`.
+- Macro `median()` with docs in `macros/_macros.yml` (D-27). Documented the existing `generate_schema_name` override too.
+- 4 dbt unit tests (D-28): `remaining_lease` formats, storey/price parsing, medians, unmapped towns.
+
+### Changed
+- `mart_town_monthly_prices`: aggregates first, then joins `dim_town` for a `region` label; grain unchanged. Then refactored to use `median()`.
+- `dbt_project.yml`: `seeds` → schema `seeds`, explicit column types, `persist_docs`.
+
+### Verified
+- `dbt build` passes (1 seed, 5 models). Regions per `dim_town`: Central 9, East 3, North 3, North-East 5, West 6.
+- `median()` refactor: build passes, and `EXCEPT` in both directions against a pre-refactor copy of the mart returned 0 rows (output identical).
+
+### Incidents
+- **Unit test `test_mart_uses_medians_not_averages` failed on its first run**, with `2000.0→2000.00`. The model was correct (medians and counts matched); the test's unquoted YAML `2000.00` had become the float `2000.0`. Fixed by quoting exact decimals. Recorded as a gotcha in D-28.
+
 ## 2026-10-08
+
+Phase 2 completed: staging, fact, aggregate, docs site, descriptions and `persist_docs`; build passed and PR merged.
 
 ### Added
 - `fct_resale_transactions` (marts, table): one row per sale, with an explicit column list and `transaction_year`, `flat_age_years` and `remaining_lease_years`. Built and checked: 241,597 rows (D-19, D-20, D-21).

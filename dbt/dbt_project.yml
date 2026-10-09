@@ -18,6 +18,17 @@ models:
       +schema: marts
       +materialized: table    # public interface for the dashboard; stored for fast reads
 
+seeds:
+  hdb_resale:
+    +schema: seeds
+    +persist_docs:
+      relation: true
+      columns: true
+    town_regions:
+      +column_types:          # explicit, instead of letting dbt infer from the CSV
+        town: text
+        region: text
+
 # Folders removed by `dbt clean`
 clean-targets:
   - target
