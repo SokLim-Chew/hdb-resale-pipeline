@@ -9,6 +9,10 @@ Month of the sale, stored as the first day of that month. Parsed from the source
 HDB town, e.g. 'ANG MO KIO'. 26 towns as of 2026. New towns such as Tengah are expected, so the `accepted_values` test only warns on unknown values.
 {% enddocs %}
 
+{% docs region %}
+URA planning region of the town: Central, East, North, North-East or West. From the `town_regions` seed.
+{% enddocs %}
+
 {% docs flat_type %}
 Number of rooms or flat category: '1 ROOM' to '5 ROOM', 'EXECUTIVE' or 'MULTI-GENERATION'. Marts group by this, so an unknown value fails the build.
 {% enddocs %}

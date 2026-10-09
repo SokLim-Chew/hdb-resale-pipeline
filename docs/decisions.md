@@ -6,7 +6,7 @@ A log of the significant choices in this project. Each entry gives the decision,
 
 - **Platform:** [D-01](#d-01-elt-not-etl) · [D-02](#d-02-separate-postgres-for-airflow-metadata) · [D-03](#d-03-airflow-standalone-in-one-container) · [D-04](#d-04-uv-with-python-pinned-to-312) · [D-05](#d-05-all-configuration-in-env)
 - **Ingestion:** [D-06](#d-06-full-refresh-not-incremental) · [D-07](#d-07-download-everything-then-load-in-one-short-transaction) · [D-08](#d-08-copy-not-insert) · [D-09](#d-09-raw-columns-are-all-text) · [D-10](#d-10-offset-pagination-with-safeguards) · [D-11](#d-11-retry-only-http-429-with-exponential-backoff) · [D-12](#d-12-source_columns-is-the-contract-with-the-api) · [D-13](#d-13-unit-tests-with-a-hand-written-fake-session)
-- **dbt:** [D-14](#d-14-profilesyml-in-the-repo-secrets-via-env_var) · [D-15](#d-15-override-generate_schema_name) · [D-16](#d-16-staging-as-views-marts-as-tables) · [D-17](#d-17-profile-the-raw-data-before-writing-staging) · [D-18](#d-18-test-severity-error-for-wrong-output-warn-for-human-decisions) · [D-19](#d-19-wide-fact-table-no-dimensions-yet) · [D-20](#d-20-transaction_id--source-row-id-for-now) · [D-21](#d-21-explicit-column-lists-in-marts) · [D-22](#d-22-medians-with-transaction-counts) · [D-23](#d-23-grain-and-reconciliation-tests-on-aggregates) · [D-25](#d-25-shared-doc-blocks-persisted-to-postgres)
+- **dbt:** [D-14](#d-14-profilesyml-in-the-repo-secrets-via-env_var) · [D-15](#d-15-override-generate_schema_name) · [D-16](#d-16-staging-as-views-marts-as-tables) · [D-17](#d-17-profile-the-raw-data-before-writing-staging) · [D-18](#d-18-test-severity-error-for-wrong-output-warn-for-human-decisions) · [D-19](#d-19-wide-fact-table-no-dimensions-yet) · [D-20](#d-20-transaction_id--source-row-id-for-now) · [D-21](#d-21-explicit-column-lists-in-marts) · [D-22](#d-22-medians-with-transaction-counts) · [D-23](#d-23-grain-and-reconciliation-tests-on-aggregates) · [D-25](#d-25-shared-doc-blocks-persisted-to-postgres) · [D-26](#d-26-town-regions-as-a-seed-dim_town-driven-by-the-data) · [D-27](#d-27-macros-only-for-repeated-nameable-logic) · [D-28](#d-28-unit-test-logic-with-edge-cases-not-pass-throughs)
 - **Workflow:** [D-24](#d-24-feature-branches-pull-requests-merge-commits)
 
 ---
@@ -115,7 +115,7 @@ A log of the significant choices in this project. Each entry gives the decision,
 - **Also:** `not_null` on every staging column, because a silently failed cast or regular expression shows up as NULL.
 
 ### D-19: Wide fact table, no dimensions yet
-**Phase 2.** `town`, `flat_type` and similar stay as columns on `fct_resale_transactions`.
+**Phase 2. Partly superseded by [D-26](#d-26-town-regions-as-a-seed-dim_town-driven-by-the-data)** (`dim_town` added; the fact table stays wide). `town`, `flat_type` and similar stay as columns on `fct_resale_transactions`.
 - **Why:** A dimension earns its place when it has attributes beyond a name. Towns only get one with the region seed (Phase 3).
 - **Revisit:** Phase 3, `dim_town`.
 
@@ -143,6 +143,28 @@ A log of the significant choices in this project. Each entry gives the decision,
 - **Why:** Pass-through columns appear in two or three models; one definition can't drift out of sync. Persisting the descriptions puts the documentation where the data is used (psql, the dashboard, any BI tool), not only on the docs site.
 - **Alternatives:** Inline descriptions repeated per model; YAML anchors (only work within one file).
 - **Trade-off:** Descriptions are one indirection away from the YAML; each build also issues `COMMENT` statements (negligible here).
+
+### D-26: Town regions as a seed; `dim_town` driven by the data
+**Phase 3.** `seeds/town_regions.csv` maps 26 towns to the 5 URA planning regions (verified against URA). `dim_town` is built from the **distinct towns in the data**, left-joined to the seed, with `not_null` on `region` as an **error**. `mart_town_monthly_prices` gets `region` as a label.
+- **Why a seed:** Small, hand-maintained reference data that changes rarely; as a CSV in git, every change is reviewed in a PR.
+- **Why data-driven:** If `dim_town` came from the seed, a new town (e.g. Tengah) would silently get no region. Driving it from the data guarantees a row, and the NULL region fails the build with a clear fix: add one CSV row. Under D-18's rule, a missing region makes output wrong (regional views would drop sales), so it's an error, while the `town` test in staging only warns.
+- **Why region is a label in the mart:** The grain stays town × flat_type × month. Regional medians can't be derived by combining town medians; they need their own aggregation from the fact table (Phase 4, MetricFlow).
+- **Alternatives:** Hard-coding regions in a SQL `CASE` (unreviewable data inside logic); a source table loaded by ingestion (overkill for 26 rows).
+- **Trade-off:** The fact table stays wide; `region` isn't on it. Join `dim_town` when needed.
+
+### D-27: Macros only for repeated, nameable logic
+**Phase 3.** Added `median(column_name, decimals=0)`, wrapping `round(percentile_cont(0.5) within group (order by …)::numeric, n)`, used for both medians in `mart_town_monthly_prices`.
+- **Why:** The expression was repeated, has three easy-to-forget details (no `median()` in Postgres, the `double precision` result, the cast before `round`), and every future aggregate would repeat it. A named macro reads as what it means.
+- **Not a macro:** the `remaining_lease` parsing. It's used once (staging), and macros used once only add a place for readers to look. It's protected by unit tests instead.
+- **Rule of thumb:** write a macro when logic repeats **and** deserves a name, or differs between databases. Not to shorten one-off SQL.
+
+### D-28: Unit-test logic with edge cases, not pass-throughs
+**Phase 3.** dbt unit tests cover the `remaining_lease` formats, storey and price parsing, median behaviour, and `dim_town`'s handling of unmapped towns.
+- **Why:** Data tests only check today's data. A regex change that breaks a rare format could pass them if that format is absent from a load. Unit tests feed every edge case on every run, and catch logic bugs before the model is built.
+- **What's not unit-tested:** renames and pass-through columns. Lots of YAML, no protection gained.
+- **Alternatives:** Relying on data tests alone; a singular test against hard-coded real rows (breaks when the data changes).
+- **Trade-off:** Expected values are written by hand, so they must be checked carefully; a wrong expectation proves nothing.
+- **Gotcha:** Quote exact decimals in YAML (`"2000.00"`). Unquoted, YAML reads a float and drops trailing zeros (`2000.0`), which doesn't match Postgres `numeric`'s `2000.00` in dbt's comparison.
 
 ## Workflow
 

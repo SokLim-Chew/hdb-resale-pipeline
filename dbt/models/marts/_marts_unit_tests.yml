@@ -1,0 +1,48 @@
+version: 2
+
+# Unit tests: hand-written input rows -> expected output, run before the model is built.
+# Only the columns listed are used; unlisted input columns are NULL.
+unit_tests:
+  - name: test_mart_uses_medians_not_averages
+    description: >
+      An outlier must not pull the price up (median 200k, where the average would be 433k),
+      and an even number of sales gives the midpoint of the middle two.
+    model: mart_town_monthly_prices
+    given:
+      - input: ref('fct_resale_transactions')
+        rows:
+          - {transaction_month: "2024-01-01", town: BEDOK, flat_type: 4 ROOM, resale_price: 100000, price_per_sqm: 1000}
+          - {transaction_month: "2024-01-01", town: BEDOK, flat_type: 4 ROOM, resale_price: 200000, price_per_sqm: 2000}
+          - {transaction_month: "2024-01-01", town: BEDOK, flat_type: 4 ROOM, resale_price: 1000000, price_per_sqm: 10000}
+          - {transaction_month: "2024-01-01", town: BEDOK, flat_type: 5 ROOM, resale_price: 300000, price_per_sqm: 3000}
+          - {transaction_month: "2024-01-01", town: BEDOK, flat_type: 5 ROOM, resale_price: 400000, price_per_sqm: 4000}
+      - input: ref('dim_town')
+        rows:
+          - {town: BEDOK, region: East}
+    expect:
+      rows:
+        # Decimals quoted: unquoted YAML 2000.00 becomes the float 2000.0, which doesn't
+        # match numeric's 2000.00 in dbt's comparison
+        - {transaction_month: "2024-01-01", town: BEDOK, region: East, flat_type: 4 ROOM,
+           transaction_count: 3, median_resale_price: 200000, median_price_per_sqm: "2000.00"}
+        - {transaction_month: "2024-01-01", town: BEDOK, region: East, flat_type: 5 ROOM,
+           transaction_count: 2, median_resale_price: 350000, median_price_per_sqm: "3500.00"}
+
+  - name: test_dim_town_keeps_towns_missing_from_seed
+    description: >
+      A town in the data but not in the seed (e.g. Tengah) must still get a row,
+      with a NULL region, so the not_null test can fail the build (D-26).
+    model: dim_town
+    given:
+      - input: ref('stg_hdb_resale')
+        rows:
+          - {town: BEDOK}
+          - {town: BEDOK}
+          - {town: TENGAH}
+      - input: ref('town_regions')
+        rows:
+          - {town: BEDOK, region: East}
+    expect:
+      rows:
+        - {town: BEDOK, region: East}
+        - {town: TENGAH, region: null}

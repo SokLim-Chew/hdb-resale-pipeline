@@ -1,0 +1,36 @@
+version: 2
+
+# Unit tests: hand-written input rows -> expected output, run before the model is built.
+# Only the columns listed are used; unlisted input columns are NULL.
+unit_tests:
+  - name: test_stg_parses_all_remaining_lease_formats
+    description: Every remaining_lease format seen in the source must parse into total months.
+    model: stg_hdb_resale
+    given:
+      - input: source('raw', 'hdb_resale')
+        rows:
+          - {_id: "1", remaining_lease: "61 years 04 months"}
+          - {_id: "2", remaining_lease: "61 years"}
+          - {_id: "3", remaining_lease: "61 years 01 month"}
+          - {_id: "4", remaining_lease: "61 years 0 months"}
+    expect:
+      rows:
+        - {source_row_id: 1, remaining_lease_months: 736}
+        - {source_row_id: 2, remaining_lease_months: 732}
+        - {source_row_id: 3, remaining_lease_months: 733}
+        - {source_row_id: 4, remaining_lease_months: 732}
+
+  - name: test_stg_parses_storeys_and_prices
+    description: >
+      storey_range splits into integers; prices keep decimals (the reason for numeric);
+      price_per_sqm rounds to 2 places.
+    model: stg_hdb_resale
+    given:
+      - input: source('raw', 'hdb_resale')
+        rows:
+          - {_id: "1", storey_range: "01 TO 03", resale_price: "288888.88", floor_area_sqm: "100"}
+          - {_id: "2", storey_range: "10 TO 12", resale_price: "500000", floor_area_sqm: "93.00"}
+    expect:
+      rows:
+        - {source_row_id: 1, storey_min: 1, storey_max: 3, resale_price: 288888.88, price_per_sqm: 2888.89}
+        - {source_row_id: 2, storey_min: 10, storey_max: 12, resale_price: 500000, price_per_sqm: 5376.34}
