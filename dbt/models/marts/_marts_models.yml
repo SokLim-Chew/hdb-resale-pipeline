@@ -1,5 +1,12 @@
 version: 2
 
+# All marts have enforced contracts (set for the folder in dbt_project.yml):
+# every column must be listed here with its exact data_type, or the build fails.
+# Numerics declare precision/scale: it bounds values and keeps builds free of dbt's
+# "unspecified precision" warning (a false alarm in Postgres, but warnings should stay meaningful).
+# Primary keys are database constraints, enforced by Postgres on insert, so they
+# replace the not_null/unique data tests on key columns.
+
 models:
   - name: fct_resale_transactions
     description: >
@@ -7,54 +14,74 @@ models:
       Public interface for the dashboard and downstream marts.
     columns:
       - name: transaction_id
+        data_type: integer
         description: >
           data.gov.sg row id. Unique within a load, but not guaranteed stable if the
           dataset is republished; fine while the table is fully rebuilt each run.
-        data_tests: [not_null, unique]
+        constraints:
+          - type: primary_key
       - name: transaction_month
+        data_type: date
         description: "{{ doc('transaction_month') }}"
         data_tests: [not_null]
       - name: transaction_year
+        data_type: integer
         description: Calendar year of the sale.
         data_tests: [not_null]
-      # Pass-through columns: described here for the docs, but already tested in staging
+      # Pass-through columns: already tested in staging
       - name: town
+        data_type: text
         description: "{{ doc('town') }}"
       - name: flat_type
+        data_type: text
         description: "{{ doc('flat_type') }}"
       - name: flat_model
+        data_type: text
         description: "{{ doc('flat_model') }}"
       - name: block
+        data_type: text
         description: "{{ doc('block') }}"
       - name: street_name
+        data_type: text
         description: "{{ doc('street_name') }}"
       - name: storey_range
+        data_type: text
         description: "{{ doc('storey_range') }}"
       - name: storey_min
+        data_type: integer
         description: "{{ doc('storey_min') }}"
       - name: storey_max
+        data_type: integer
         description: "{{ doc('storey_max') }}"
       - name: floor_area_sqm
+        data_type: numeric(6,2)
         description: "{{ doc('floor_area_sqm') }}"
       - name: lease_commence_year
+        data_type: integer
         description: "{{ doc('lease_commence_year') }}"
       - name: flat_age_years
+        data_type: integer
         description: >
           Calendar years between lease start and the sale (transaction year minus
           lease_commence_year). Can read up to a year older than the true age.
         data_tests: [not_null]
       - name: remaining_lease_months
+        data_type: integer
         description: "{{ doc('remaining_lease_months') }}"
       - name: remaining_lease_years
+        data_type: numeric(4,1)
         description: remaining_lease_months / 12, rounded to 1 decimal.
         data_tests: [not_null]
       - name: resale_price
+        data_type: numeric(12,2)
         description: "{{ doc('resale_price') }}"
         data_tests: [not_null]
       - name: price_per_sqm
+        data_type: numeric(10,2)
         description: "{{ doc('price_per_sqm') }}"
         data_tests: [not_null]
       - name: _loaded_at
+        data_type: timestamp with time zone
         description: "{{ doc('_loaded_at') }}"
 
   - name: dim_town
@@ -63,9 +90,12 @@ models:
       from the town_regions seed.
     columns:
       - name: town
+        data_type: text
         description: "{{ doc('town') }}"
-        data_tests: [not_null, unique]
+        constraints:
+          - type: primary_key
       - name: region
+        data_type: text
         description: >
           {{ doc('region') }} NULL means the town is missing from
           seeds/town_regions.csv; the test fails the build until a row is added.
@@ -73,28 +103,36 @@ models:
 
   - name: mart_town_monthly_prices
     description: >
-      Median resale prices per town x flat_type x month. Grain uniqueness and
-      reconciliation with fct_resale_transactions are tested in dbt/tests/.
+      Median resale prices per town x flat_type x month. Reconciliation with
+      fct_resale_transactions is tested in dbt/tests/.
       Medians can't be re-aggregated: compute all-town figures from the fact table.
+    # The grain, enforced by Postgres: no two rows for the same month, town and flat type
+    constraints:
+      - type: primary_key
+        columns: [transaction_month, town, flat_type]
     columns:
       - name: transaction_month
+        data_type: date
         description: "{{ doc('transaction_month') }}"
-        data_tests: [not_null]
       - name: town
+        data_type: text
         description: "{{ doc('town') }}"
-        data_tests: [not_null]
       - name: region
+        data_type: text
         description: "{{ doc('region') }} A filter label only: medians can't be combined into regional figures."
         data_tests: [not_null]
       - name: flat_type
+        data_type: text
         description: "{{ doc('flat_type') }}"
-        data_tests: [not_null]
       - name: transaction_count
+        data_type: bigint  # count(*) returns bigint in Postgres, not integer
         description: Sales in the group. Small counts make the medians noisy.
         data_tests: [not_null]
       - name: median_resale_price
+        data_type: numeric(12,0)
         description: Median sale price in SGD, rounded to the dollar.
         data_tests: [not_null]
       - name: median_price_per_sqm
+        data_type: numeric(10,2)
         description: Median price per sqm in SGD, rounded to 2 decimals.
         data_tests: [not_null]

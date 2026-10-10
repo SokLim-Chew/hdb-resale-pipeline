@@ -16,7 +16,7 @@ Portfolio ELT project: Singapore HDB resale transactions (data.gov.sg) → Postg
 
 - **Phase 1 (ingestion) is done:** `ingestion/load_hdb_resale.py` loads the full dataset into `raw.hdb_resale`, with unit tests in `tests/`.
 - **Phase 2 (dbt) is done:** `dbt/` has the `raw` source, `stg_hdb_resale`, `fct_resale_transactions` and `mart_town_monthly_prices`, with tests, full descriptions (shared ones as doc blocks in `dbt/models/_column_docs.md`) and `persist_docs`.
-- **Phase 3 (advanced dbt) is in progress**, in the order seeds → macros → unit tests → contracts → incremental → snapshots. Done so far: `seeds/town_regions.csv`, `dim_town`, the `median()` macro, and dbt unit tests (`_staging_unit_tests.yml`, `_marts_unit_tests.yml`). See `docs/changelog.md` for current status.
+- **Phase 3 (advanced dbt) is in progress**, in the order seeds → macros → unit tests → contracts → incremental → snapshots. Done so far: `seeds/town_regions.csv`, `dim_town`, the `median()` macro, dbt unit tests (`_staging_unit_tests.yml`, `_marts_unit_tests.yml`), and enforced contracts on all marts. See `docs/changelog.md` for current status.
 - `dags/` and `dashboard/` don't exist yet.
 
 Update this section as each phase lands.
@@ -64,6 +64,8 @@ Full command reference, including planned ones per phase: `docs/commands.md`.
 
 - **Python is pinned to 3.12** via `.python-version`, for dbt compatibility. Don't let uv pick a newer interpreter.
 - **Postgres only applies `WAREHOUSE_USER`/`WAREHOUSE_PASSWORD` the first time it starts on an empty volume.** Changing them in `.env` afterwards causes "password authentication failed". Fix it with `docker compose down -v` (wipes data), then reload.
+- **Marts have enforced contracts** (folder-level): any column added to or changed in a mart must also be added to `_marts_models.yml` with its exact Postgres `data_type` (e.g. `count(*)` is `bigint`), or the build fails.
+- **Quote exact decimals in dbt unit test YAML** (`"2000.00"`); unquoted, YAML turns them into floats that don't match `numeric`.
 - **Avoid `$` in `.env` values.** Compose and python-dotenv interpolate `$` differently, so the container and the loader can end up with different passwords.
 
 ## Architecture

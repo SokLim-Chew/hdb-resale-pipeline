@@ -6,7 +6,7 @@ A log of the significant choices in this project. Each entry gives the decision,
 
 - **Platform:** [D-01](#d-01-elt-not-etl) · [D-02](#d-02-separate-postgres-for-airflow-metadata) · [D-03](#d-03-airflow-standalone-in-one-container) · [D-04](#d-04-uv-with-python-pinned-to-312) · [D-05](#d-05-all-configuration-in-env)
 - **Ingestion:** [D-06](#d-06-full-refresh-not-incremental) · [D-07](#d-07-download-everything-then-load-in-one-short-transaction) · [D-08](#d-08-copy-not-insert) · [D-09](#d-09-raw-columns-are-all-text) · [D-10](#d-10-offset-pagination-with-safeguards) · [D-11](#d-11-retry-only-http-429-with-exponential-backoff) · [D-12](#d-12-source_columns-is-the-contract-with-the-api) · [D-13](#d-13-unit-tests-with-a-hand-written-fake-session)
-- **dbt:** [D-14](#d-14-profilesyml-in-the-repo-secrets-via-env_var) · [D-15](#d-15-override-generate_schema_name) · [D-16](#d-16-staging-as-views-marts-as-tables) · [D-17](#d-17-profile-the-raw-data-before-writing-staging) · [D-18](#d-18-test-severity-error-for-wrong-output-warn-for-human-decisions) · [D-19](#d-19-wide-fact-table-no-dimensions-yet) · [D-20](#d-20-transaction_id--source-row-id-for-now) · [D-21](#d-21-explicit-column-lists-in-marts) · [D-22](#d-22-medians-with-transaction-counts) · [D-23](#d-23-grain-and-reconciliation-tests-on-aggregates) · [D-25](#d-25-shared-doc-blocks-persisted-to-postgres) · [D-26](#d-26-town-regions-as-a-seed-dim_town-driven-by-the-data) · [D-27](#d-27-macros-only-for-repeated-nameable-logic) · [D-28](#d-28-unit-test-logic-with-edge-cases-not-pass-throughs)
+- **dbt:** [D-14](#d-14-profilesyml-in-the-repo-secrets-via-env_var) · [D-15](#d-15-override-generate_schema_name) · [D-16](#d-16-staging-as-views-marts-as-tables) · [D-17](#d-17-profile-the-raw-data-before-writing-staging) · [D-18](#d-18-test-severity-error-for-wrong-output-warn-for-human-decisions) · [D-19](#d-19-wide-fact-table-no-dimensions-yet) · [D-20](#d-20-transaction_id--source-row-id-for-now) · [D-21](#d-21-explicit-column-lists-in-marts) · [D-22](#d-22-medians-with-transaction-counts) · [D-23](#d-23-grain-and-reconciliation-tests-on-aggregates) · [D-25](#d-25-shared-doc-blocks-persisted-to-postgres) · [D-26](#d-26-town-regions-as-a-seed-dim_town-driven-by-the-data) · [D-27](#d-27-macros-only-for-repeated-nameable-logic) · [D-28](#d-28-unit-test-logic-with-edge-cases-not-pass-throughs) · [D-29](#d-29-enforced-contracts-and-primary-keys-on-marts)
 - **Workflow:** [D-24](#d-24-feature-branches-pull-requests-merge-commits)
 
 ---
@@ -135,7 +135,7 @@ A log of the significant choices in this project. Each entry gives the decision,
 - **Constraint:** Medians can't be re-aggregated. All-Singapore figures must be computed from the fact table, not by averaging this mart (motivation for MetricFlow in Phase 4).
 
 ### D-23: Grain and reconciliation tests on aggregates
-**Phase 2.** Singular tests check that town + flat_type + month is unique, and that `sum(transaction_count)` equals the fact table's row count.
+**Phase 2. Grain part superseded by [D-29](#d-29-enforced-contracts-and-primary-keys-on-marts)** (the grain is now a primary key constraint; the reconciliation test stays). Singular tests check that town + flat_type + month is unique, and that `sum(transaction_count)` equals the fact table's row count.
 - **Why:** These prove the aggregation neither drops nor double-counts sales. They're singular tests because dbt's built-in generic tests check one column at a time (`dbt_utils` offers a ready-made test; packages come in Phase 3).
 
 ### D-25: Shared doc blocks, persisted to Postgres
@@ -165,6 +165,16 @@ A log of the significant choices in this project. Each entry gives the decision,
 - **Alternatives:** Relying on data tests alone; a singular test against hard-coded real rows (breaks when the data changes).
 - **Trade-off:** Expected values are written by hand, so they must be checked carefully; a wrong expectation proves nothing.
 - **Gotcha:** Quote exact decimals in YAML (`"2000.00"`). Unquoted, YAML reads a float and drops trailing zeros (`2000.0`), which doesn't match Postgres `numeric`'s `2000.00` in dbt's comparison.
+
+### D-29: Enforced contracts and primary keys on marts
+**Phase 3.** `+contract: {enforced: true}` for the whole `marts` folder: every mart lists every column with its `data_type`. Primary key constraints: `transaction_id`, `dim_town.town`, and `(transaction_month, town, flat_type)` on the aggregate.
+- **Why contracts:** Marts are the public interface (D-21). A renamed column or changed type now fails the build before the table is replaced, instead of silently breaking the dashboard. Folder-level, so every future mart must declare its shape too.
+- **Why constraints for keys:** Postgres enforces them while rows are inserted; a violation fails the build and the previous table stays. A data test only runs after the new table is already published. For a rule that must never break, the constraint is stronger, so the data tests on key columns, and the singular grain test, were removed as redundant.
+- **Kept as data tests:** other `not_null` checks and all `accepted_values` (they report row counts, can warn, and show on the docs site).
+- **Not contracted:** staging. It's internal and should stay free to change.
+- **Example caught:** `count(*)` returns `bigint`, not `integer`; the contract makes such hidden types explicit.
+- **Numeric precision declared** (e.g. `resale_price numeric(12,2)`, `median_resale_price numeric(12,0)`). dbt warned about bare `numeric`, which rounds in some warehouses; in Postgres it doesn't, so the warning was a false alarm. Fixed anyway to avoid warning fatigue (a build should be silent when all is well, so real warnings stand out), and because sizes now bound the values. Each scale matches the data's decimals, so nothing is rounded; `floor_area_sqm` now displays two decimals (`31.00`). dbt's contract check ignores precision; it only goes into the table definition.
+- **Trade-off:** Every column change in a mart now needs a matching YAML change.
 
 ## Workflow
 

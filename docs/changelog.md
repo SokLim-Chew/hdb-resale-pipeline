@@ -8,13 +8,30 @@ Progress, changes and incidents, newest first. Dates are working-session dates. 
 |---|---|
 | 1. Ingestion | ✅ Done |
 | 2. Transformation (dbt) | ✅ Done |
-| 3. Advanced dbt | 🚧 In progress: seeds ✅ · macros ✅ · unit tests ✍️ · contracts · incremental · snapshots |
+| 3. Advanced dbt | 🚧 In progress: seeds ✅ · macros ✅ · unit tests ✅ · contracts ✍️ · incremental · snapshots |
 | 4. Semantic layer | Not started |
 | 5. Orchestration | Not started (Compose services already defined) |
 | 6. Serving | Not started |
 | 7. Quality & CI | Not started |
 
 ---
+
+## 2026-10-10
+
+### Added
+- Branch `phase3-contracts` (seeds, macros and unit tests merged to `main` via PR).
+- Enforced contracts on all marts, with `data_type` for every column; primary key constraints on `fct_resale_transactions`, `dim_town` and `mart_town_monthly_prices` (D-29).
+
+### Removed
+- Data tests on key columns and the singular test `assert_mart_town_monthly_prices_unique_grain`: replaced by primary key constraints.
+
+### Changed
+- Mart `numeric` columns now declare precision/scale, after dbt warned about bare `numeric` (D-29).
+
+### Verified
+- `mart_town_monthly_prices` builds under its contract (13,253 rows), all tests pass.
+
+- Full `dbt build` passes with contracts on all three marts, and no warnings.
 
 ## 2026-10-09
 
