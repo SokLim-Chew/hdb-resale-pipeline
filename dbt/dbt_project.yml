@@ -17,6 +17,8 @@ models:
     marts:
       +schema: marts
       +materialized: table    # public interface for the dashboard; stored for fast reads
+      +contract:
+        enforced: true        # every mart must declare its columns and types (see _marts_models.yml)
 
 seeds:
   hdb_resale:

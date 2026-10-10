@@ -74,11 +74,12 @@ Schema names come from `+schema:` in `dbt_project.yml`. `macros/generate_schema_
 |---|---|
 | Loader | Row count fetched must equal the API's `total`, checked before writing; a missing source field raises a `KeyError` (`SOURCE_COLUMNS`). |
 | `stg_hdb_resale` | `not_null` on every column; `unique` on `source_row_id`; `accepted_values` on `flat_type` (**error**), `town` and `flat_model` (**warn**); singular test `assert_stg_hdb_resale_values_in_range` (lease 0–1188 months, positive price and area, `storey_min <= storey_max`). |
-| `fct_resale_transactions` | `not_null` + `unique` on `transaction_id`; `not_null` on derived columns and measures. Pass-through columns are already tested in staging. |
+| All marts | **Enforced contracts** (folder-level in `dbt_project.yml`): column names and `data_type`s are checked before building. **Primary key constraints**, enforced by Postgres on insert, replace the data tests on key columns. |
+| `fct_resale_transactions` | Primary key `transaction_id`; `not_null` on derived columns and measures. Pass-through columns are already tested in staging. |
 | `town_regions` seed | `not_null` + `unique` on `town`; `region` in the 5 URA regions. |
-| `dim_town` | `unique` town; `not_null` region (**error**): a town missing from the seed stops the build until its row is added. |
+| `dim_town` | Primary key `town`; `not_null` region (**error**): a town missing from the seed stops the build until its row is added. |
 | Unit tests (logic, not data) | `stg_hdb_resale`: all 4 `remaining_lease` formats; storey, price and `price_per_sqm` parsing. `mart_town_monthly_prices`: median not average, even-count midpoint. `dim_town`: a town missing from the seed keeps its row with a NULL region. Defined in `_staging_unit_tests.yml` / `_marts_unit_tests.yml`. |
-| `mart_town_monthly_prices` | `not_null` on all columns; singular tests for grain uniqueness and reconciliation (`sum(transaction_count)` = fact row count). |
+| `mart_town_monthly_prices` | Primary key (`transaction_month`, `town`, `flat_type`) enforces the grain; `not_null` on the other columns; singular reconciliation test (`sum(transaction_count)` = fact row count). |
 
 ## Documentation in dbt
 
