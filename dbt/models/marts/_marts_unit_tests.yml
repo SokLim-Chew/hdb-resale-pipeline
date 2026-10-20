@@ -3,6 +3,33 @@ version: 2
 # Unit tests: hand-written input rows -> expected output, run before the model is built.
 # Only the columns listed are used; unlisted input columns are NULL.
 unit_tests:
+  - name: test_fct_incremental_reprocesses_lookback_window
+    description: >
+      On an incremental run, only months from (latest loaded month - lookback_months)
+      onwards are reprocessed: here max = 2026-09, lookback 3 -> from 2026-06.
+    model: fct_resale_transactions
+    overrides:
+      macros:
+        is_incremental: true
+      vars:
+        lookback_months: 3
+    given:
+      - input: ref('stg_hdb_resale')
+        rows:
+          - {source_row_id: 1, transaction_month: "2026-01-01"}
+          - {source_row_id: 2, transaction_month: "2026-05-01"}
+          - {source_row_id: 3, transaction_month: "2026-06-01"}
+          - {source_row_id: 4, transaction_month: "2026-09-01"}
+          - {source_row_id: 5, transaction_month: "2026-10-01"}
+      - input: this
+        rows:
+          - {transaction_month: "2026-09-01"}
+    expect:
+      rows:
+        - {transaction_id: 3, transaction_month: "2026-06-01"}
+        - {transaction_id: 4, transaction_month: "2026-09-01"}
+        - {transaction_id: 5, transaction_month: "2026-10-01"}
+
   - name: test_mart_uses_medians_not_averages
     description: >
       An outlier must not pull the price up (median 200k, where the average would be 433k),

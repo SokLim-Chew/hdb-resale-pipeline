@@ -8,13 +8,29 @@ Progress, changes and incidents, newest first. Dates are working-session dates. 
 |---|---|
 | 1. Ingestion | ✅ Done |
 | 2. Transformation (dbt) | ✅ Done |
-| 3. Advanced dbt | 🚧 In progress: seeds ✅ · macros ✅ · unit tests ✅ · contracts ✍️ · incremental · snapshots |
+| 3. Advanced dbt | 🚧 In progress: seeds ✅ · macros ✅ · unit tests ✅ · contracts ✅ · incremental ✅ · snapshots ✍️ |
 | 4. Semantic layer | Not started |
 | 5. Orchestration | Not started (Compose services already defined) |
 | 6. Serving | Not started |
 | 7. Quality & CI | Not started |
 
 ---
+
+## 2026-10-19
+
+### Verified
+- Incremental `fct_resale_transactions`: full refresh loads 241,597 rows; an incremental run reprocesses only the lookback window; after deleting 2026-08 by hand, an incremental run restored it (count back to 241,597).
+
+### Incidents
+- **First incremental run of `fct_resale_transactions` failed:** "source and target schemas … out of sync", listing type changes for `floor_area_sqm`, `remaining_lease_years`, `resale_price` and `price_per_sqm`. Cause: the table was created from the contract with precision (`numeric(12,2)` etc.), but the incremental batch's types come from the `SELECT`, which produced plain `numeric`. `on_schema_change` compares precision; the contract check doesn't. Fixed by casting those columns to their exact types in the SQL (D-29, D-30).
+
+## 2026-10-11
+
+### Changed
+- `fct_resale_transactions` is now incremental: `delete+insert` by `transaction_month` with a 3-month lookback window (`lookback_months` var in `dbt_project.yml`), `on_schema_change='fail'` (D-30).
+
+### Added
+- Unit test `test_fct_incremental_reprocesses_lookback_window` (overrides `is_incremental()`, fakes `{{ this }}`).
 
 ## 2026-10-10
 
