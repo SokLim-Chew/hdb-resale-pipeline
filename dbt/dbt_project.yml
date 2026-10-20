@@ -4,6 +4,11 @@ version: "1.0.0"
 # Which entry in profiles.yml to connect with
 profile: hdb_resale
 
+vars:
+  # Months already loaded that each incremental run of fct_resale_transactions
+  # reprocesses. Override once with: dbt build --vars '{lookback_months: 12}'
+  lookback_months: 3
+
 models:
   hdb_resale:
     # Write model and column descriptions into Postgres as COMMENTs,

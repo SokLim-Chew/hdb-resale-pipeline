@@ -177,6 +177,8 @@ cd dbt
 | `uv run --env-file ../.env dbt build` | Loads seeds, builds every model and runs every test, in dependency order. A failing test skips the models that depend on it. |
 | `uv run --env-file ../.env dbt test --select test_type:unit` | Runs only the unit tests (hand-written rows, no real data). `dbt build` also runs each model's unit tests before building it. |
 | `uv run --env-file ../.env dbt test --select test_type:data` | Runs only data tests against the built tables. |
+| `uv run --env-file ../.env dbt build --full-refresh` | Rebuilds incremental models (`fct_resale_transactions`) from scratch. Needed after a schema change, a primary key clash from renumbered source ids, or to pick up corrections older than the lookback window. |
+| `uv run --env-file ../.env dbt build --vars '{lookback_months: 12}'` | One run with a larger incremental lookback window (default 3, set in `dbt_project.yml`). |
 | `uv run --env-file ../.env dbt seed` | Loads only the CSVs in `dbt/seeds/` into the `seeds` schema (replacing their contents). |
 | `uv run --env-file ../.env dbt build --select town_regions+` | Reloads the seed and rebuilds everything that depends on it, e.g. after adding a town. |
 | `uv run dbt clean` | Deletes `target/` and `dbt_packages/` (the `clean-targets` in `dbt_project.yml`). |
@@ -252,7 +254,6 @@ These are the expected commands. Confirm and move each one into the sections abo
 ### Phase 3: advanced dbt
 ```bash
 uv run --env-file ../.env dbt snapshot                      # record SCD Type 2 history
-uv run --env-file ../.env dbt build --full-refresh          # rebuild incremental models from scratch
 uv run --env-file ../.env dbt deps                          # install packages from packages.yml (e.g. dbt_utils)
 ```
 

@@ -63,7 +63,7 @@ Schema names come from `+schema:` in `dbt_project.yml`. `macros/generate_schema_
 |---|---|---|---|
 | `raw.hdb_resale` (source) | API record | `_id`, 11 source fields, `_loaded_at` | Every column `TEXT`. |
 | `stg_hdb_resale` | transaction | `source_row_id` | `transaction_month` (date), `storey_min`/`storey_max`, `remaining_lease_months` (all 4 source formats parsed), `resale_price` as `numeric` (some prices have decimals), `price_per_sqm`. |
-| `fct_resale_transactions` | transaction | `transaction_id` | Explicit column list (public interface). Adds `transaction_year`, `flat_age_years`, `remaining_lease_years`. |
+| `fct_resale_transactions` | transaction | `transaction_id` | **Incremental** (`delete+insert` on `transaction_month`): each run replaces the last `lookback_months` (var, default 3) already loaded plus newer months. Explicit column list (public interface). Adds `transaction_year`, `flat_age_years`, `remaining_lease_years`. |
 | `town_regions` (seed) | town | `town` | Town → URA planning region (5 regions). Add a row when a new town appears. |
 | `dim_town` | town | `town` | Every town found in the data, left-joined to the seed for `region`. |
 | `mart_town_monthly_prices` | town × flat_type × month | (`transaction_month`, `town`, `flat_type`) | `region` (from `dim_town`, a filter label), `transaction_count`, `median_resale_price`, `median_price_per_sqm`. Medians can't be re-aggregated across towns, regions or types. |
@@ -78,7 +78,7 @@ Schema names come from `+schema:` in `dbt_project.yml`. `macros/generate_schema_
 | `fct_resale_transactions` | Primary key `transaction_id`; `not_null` on derived columns and measures. Pass-through columns are already tested in staging. |
 | `town_regions` seed | `not_null` + `unique` on `town`; `region` in the 5 URA regions. |
 | `dim_town` | Primary key `town`; `not_null` region (**error**): a town missing from the seed stops the build until its row is added. |
-| Unit tests (logic, not data) | `stg_hdb_resale`: all 4 `remaining_lease` formats; storey, price and `price_per_sqm` parsing. `mart_town_monthly_prices`: median not average, even-count midpoint. `dim_town`: a town missing from the seed keeps its row with a NULL region. Defined in `_staging_unit_tests.yml` / `_marts_unit_tests.yml`. |
+| Unit tests (logic, not data) | `fct_resale_transactions`: the incremental lookback window selects exactly the right months. `stg_hdb_resale`: all 4 `remaining_lease` formats; storey, price and `price_per_sqm` parsing. `mart_town_monthly_prices`: median not average, even-count midpoint. `dim_town`: a town missing from the seed keeps its row with a NULL region. Defined in `_staging_unit_tests.yml` / `_marts_unit_tests.yml`. |
 | `mart_town_monthly_prices` | Primary key (`transaction_month`, `town`, `flat_type`) enforces the grain; `not_null` on the other columns; singular reconciliation test (`sum(transaction_count)` = fact row count). |
 
 ## Documentation in dbt
