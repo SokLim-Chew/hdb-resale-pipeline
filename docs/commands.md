@@ -147,6 +147,19 @@ SELECT street_name, block, count(*) FROM marts.fct_resale_transactions
 WHERE flat_age_years <= 2 GROUP BY 1, 2 ORDER BY 3 DESC;
 ```
 
+**Snapshot history:** how far back revisions reach (use it to tune `lookback_months`), and one group's versions:
+```sql
+SELECT transaction_month, count(*) AS revised_versions
+FROM snapshots.snap_town_monthly_prices
+WHERE dbt_valid_to IS NOT NULL
+GROUP BY 1 ORDER BY 1 DESC;
+
+SELECT dbt_valid_from, dbt_valid_to, transaction_count, median_resale_price
+FROM snapshots.snap_town_monthly_prices
+WHERE transaction_month = '2026-08-01' AND town = 'BEDOK' AND flat_type = '4 ROOM'
+ORDER BY dbt_valid_from;
+```
+
 **Compare prices over time** in the aggregate mart:
 ```sql
 SELECT town, transaction_month, transaction_count, median_resale_price, median_price_per_sqm
@@ -179,6 +192,7 @@ cd dbt
 | `uv run --env-file ../.env dbt test --select test_type:data` | Runs only data tests against the built tables. |
 | `uv run --env-file ../.env dbt build --full-refresh` | Rebuilds incremental models (`fct_resale_transactions`) from scratch. Needed after a schema change, a primary key clash from renumbered source ids, or to pick up corrections older than the lookback window. |
 | `uv run --env-file ../.env dbt build --vars '{lookback_months: 12}'` | One run with a larger incremental lookback window (default 3, set in `dbt_project.yml`). |
+| `uv run --env-file ../.env dbt snapshot` | Runs only the snapshots: compares `mart_town_monthly_prices` with the last recorded versions and records changes. `dbt build` also runs it, after the mart. |
 | `uv run --env-file ../.env dbt seed` | Loads only the CSVs in `dbt/seeds/` into the `seeds` schema (replacing their contents). |
 | `uv run --env-file ../.env dbt build --select town_regions+` | Reloads the seed and rebuilds everything that depends on it, e.g. after adding a town. |
 | `uv run dbt clean` | Deletes `target/` and `dbt_packages/` (the `clean-targets` in `dbt_project.yml`). |
@@ -253,7 +267,6 @@ These are the expected commands. Confirm and move each one into the sections abo
 
 ### Phase 3: advanced dbt
 ```bash
-uv run --env-file ../.env dbt snapshot                      # record SCD Type 2 history
 uv run --env-file ../.env dbt deps                          # install packages from packages.yml (e.g. dbt_utils)
 ```
 

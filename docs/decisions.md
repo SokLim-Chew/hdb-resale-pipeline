@@ -6,7 +6,7 @@ A log of the significant choices in this project. Each entry gives the decision,
 
 - **Platform:** [D-01](#d-01-elt-not-etl) · [D-02](#d-02-separate-postgres-for-airflow-metadata) · [D-03](#d-03-airflow-standalone-in-one-container) · [D-04](#d-04-uv-with-python-pinned-to-312) · [D-05](#d-05-all-configuration-in-env)
 - **Ingestion:** [D-06](#d-06-full-refresh-not-incremental) · [D-07](#d-07-download-everything-then-load-in-one-short-transaction) · [D-08](#d-08-copy-not-insert) · [D-09](#d-09-raw-columns-are-all-text) · [D-10](#d-10-offset-pagination-with-safeguards) · [D-11](#d-11-retry-only-http-429-with-exponential-backoff) · [D-12](#d-12-source_columns-is-the-contract-with-the-api) · [D-13](#d-13-unit-tests-with-a-hand-written-fake-session)
-- **dbt:** [D-14](#d-14-profilesyml-in-the-repo-secrets-via-env_var) · [D-15](#d-15-override-generate_schema_name) · [D-16](#d-16-staging-as-views-marts-as-tables) · [D-17](#d-17-profile-the-raw-data-before-writing-staging) · [D-18](#d-18-test-severity-error-for-wrong-output-warn-for-human-decisions) · [D-19](#d-19-wide-fact-table-no-dimensions-yet) · [D-20](#d-20-transaction_id--source-row-id-for-now) · [D-21](#d-21-explicit-column-lists-in-marts) · [D-22](#d-22-medians-with-transaction-counts) · [D-23](#d-23-grain-and-reconciliation-tests-on-aggregates) · [D-25](#d-25-shared-doc-blocks-persisted-to-postgres) · [D-26](#d-26-town-regions-as-a-seed-dim_town-driven-by-the-data) · [D-27](#d-27-macros-only-for-repeated-nameable-logic) · [D-28](#d-28-unit-test-logic-with-edge-cases-not-pass-throughs) · [D-29](#d-29-enforced-contracts-and-primary-keys-on-marts) · [D-30](#d-30-incremental-fact-table-with-a-month-lookback-window)
+- **dbt:** [D-14](#d-14-profilesyml-in-the-repo-secrets-via-env_var) · [D-15](#d-15-override-generate_schema_name) · [D-16](#d-16-staging-as-views-marts-as-tables) · [D-17](#d-17-profile-the-raw-data-before-writing-staging) · [D-18](#d-18-test-severity-error-for-wrong-output-warn-for-human-decisions) · [D-19](#d-19-wide-fact-table-no-dimensions-yet) · [D-20](#d-20-transaction_id--source-row-id-for-now) · [D-21](#d-21-explicit-column-lists-in-marts) · [D-22](#d-22-medians-with-transaction-counts) · [D-23](#d-23-grain-and-reconciliation-tests-on-aggregates) · [D-25](#d-25-shared-doc-blocks-persisted-to-postgres) · [D-26](#d-26-town-regions-as-a-seed-dim_town-driven-by-the-data) · [D-27](#d-27-macros-only-for-repeated-nameable-logic) · [D-28](#d-28-unit-test-logic-with-edge-cases-not-pass-throughs) · [D-29](#d-29-enforced-contracts-and-primary-keys-on-marts) · [D-30](#d-30-incremental-fact-table-with-a-month-lookback-window) · [D-31](#d-31-snapshot-the-monthly-mart-to-measure-revisions)
 - **Workflow:** [D-24](#d-24-feature-branches-pull-requests-merge-commits)
 
 ---
@@ -187,6 +187,14 @@ A log of the significant choices in this project. Each entry gives the decision,
 - **Alternatives:** `microbatch` (dbt 1.9+, automatic time batches with built-in lookback; the modern choice, but hides the mechanics); `merge` on a row key (needs a stable key we don't have); staying a table.
 - **Limitations:** Changes older than the window are missed until a `--full-refresh`. If source ids are renumbered, the primary key constraint fails the build (fix: `--full-refresh`). The 3-month window is a guess; the snapshot (D-31, next) will measure actual revisions to tune it.
 - **Tested:** a unit test overrides `is_incremental()` and fakes `{{ this }}` to prove the window selects exactly the right months.
+
+### D-31: Snapshot the monthly mart to measure revisions
+**Phase 3.** `snap_town_monthly_prices` (YAML-defined, dbt 1.9+) records SCD Type 2 history of `mart_town_monthly_prices`: key (`transaction_month`, `town`, `flat_type`), `check` strategy on `transaction_count` and both medians, `hard_deletes: invalidate`, own `snapshots` schema.
+- **Why:** D-30's 3-month lookback was a guess. The snapshot shows which months actually change between loads and how far back, so the window can be tuned from evidence. It also audits restatements ("what did we report for August on 1 October?").
+- **Why `check`:** No `updated_at` column exists, so changes are detected by comparing values.
+- **Why snapshot a mart, not the source:** dbt usually recommends snapshotting sources, because a mart's logic change shows up as artificial "revisions". But the raw data has no stable key (D-20), while the mart has a natural one. Accepted trade-off: after a mart logic change, expect one batch of artificial versions.
+- **Limitations:** History starts at the first run and can't be rebuilt; dropping the table loses it. Only changes between runs are seen, so it must run after every load (Phase 5).
+- **Tested:** at most one current version per key.
 
 ## Workflow
 
