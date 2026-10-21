@@ -30,7 +30,7 @@ Update this section as each phase lands.
 - `docs/decisions.md`: add a D-xx entry for each significant design choice (why, alternatives, trade-off). Never rewrite old entries; mark them superseded.
 - `docs/changelog.md`: add dated entries for what changed, findings and incidents; keep the status table current.
 
-The README's "What I learned / design decisions" section is written by the user in their own words; don't edit it.
+The README's "Design highlights" section summarizes the most important decisions in one line each, linking to `docs/decisions.md`. Keep it short; when a new decision is significant enough for a portfolio reader, add a bullet there too.
 
 ## Commands
 
