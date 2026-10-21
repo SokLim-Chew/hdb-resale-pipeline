@@ -16,7 +16,7 @@ Portfolio ELT project: Singapore HDB resale transactions (data.gov.sg) → Postg
 
 - **Phase 1 (ingestion) is done:** `ingestion/load_hdb_resale.py` loads the full dataset into `raw.hdb_resale`, with unit tests in `tests/`.
 - **Phase 2 (dbt) is done:** `dbt/` has the `raw` source, `stg_hdb_resale`, `fct_resale_transactions` and `mart_town_monthly_prices`, with tests, full descriptions (shared ones as doc blocks in `dbt/models/_column_docs.md`) and `persist_docs`.
-- **Phase 3 (advanced dbt) is in progress**, in the order seeds → macros → unit tests → contracts → incremental → snapshots. Done so far: `seeds/town_regions.csv`, `dim_town`, the `median()` macro, dbt unit tests (`_staging_unit_tests.yml`, `_marts_unit_tests.yml`), enforced contracts on all marts, and an incremental `fct_resale_transactions`. See `docs/changelog.md` for current status.
+- **Phase 3 (advanced dbt) is done:** `seeds/town_regions.csv`, `dim_town`, the `median()` macro, dbt unit tests (`_staging_unit_tests.yml`, `_marts_unit_tests.yml`), enforced contracts on all marts, an incremental `fct_resale_transactions`, and the snapshot `snap_town_monthly_prices`. **Phase 4 (MetricFlow) is next.** See `docs/changelog.md` for current status.
 - `dags/` and `dashboard/` don't exist yet.
 
 Update this section as each phase lands.
@@ -30,7 +30,7 @@ Update this section as each phase lands.
 - `docs/decisions.md`: add a D-xx entry for each significant design choice (why, alternatives, trade-off). Never rewrite old entries; mark them superseded.
 - `docs/changelog.md`: add dated entries for what changed, findings and incidents; keep the status table current.
 
-The README's "What I learned / design decisions" section is written by the user in their own words; don't edit it.
+The README's "Design highlights" section summarizes the most important decisions in one line each, linking to `docs/decisions.md`. Keep it short; when a new decision is significant enough for a portfolio reader, add a bullet there too.
 
 ## Commands
 
@@ -66,6 +66,7 @@ Full command reference, including planned ones per phase: `docs/commands.md`.
 - **Postgres only applies `WAREHOUSE_USER`/`WAREHOUSE_PASSWORD` the first time it starts on an empty volume.** Changing them in `.env` afterwards causes "password authentication failed". Fix it with `docker compose down -v` (wipes data), then reload.
 - **Marts have enforced contracts** (folder-level): any column added to or changed in a mart must also be added to `_marts_models.yml` with its exact Postgres `data_type` (e.g. `count(*)` is `bigint`), or the build fails.
 - **`fct_resale_transactions` is incremental** (3-month lookback, `delete+insert` by month). After changing its columns, or on a primary key clash from renumbered source ids, run `dbt build --full-refresh`. Corrections older than the window also need a full refresh. Its SQL must cast numerics to the exact contract types (e.g. `::numeric(12,2)`): `on_schema_change` compares precision, the contract check doesn't.
+- **Never drop `snapshots.snap_town_monthly_prices`** (or run `docker compose down -v` casually once history matters): snapshot history can't be rebuilt.
 - **Quote exact decimals in dbt unit test YAML** (`"2000.00"`); unquoted, YAML turns them into floats that don't match `numeric`.
 - **Avoid `$` in `.env` values.** Compose and python-dotenv interpolate `$` differently, so the container and the loader can end up with different passwords.
 

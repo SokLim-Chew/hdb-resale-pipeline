@@ -8,13 +8,23 @@ Progress, changes and incidents, newest first. Dates are working-session dates. 
 |---|---|
 | 1. Ingestion | ✅ Done |
 | 2. Transformation (dbt) | ✅ Done |
-| 3. Advanced dbt | 🚧 In progress: seeds ✅ · macros ✅ · unit tests ✅ · contracts ✅ · incremental ✅ · snapshots ✍️ |
+| 3. Advanced dbt | ✅ Done |
 | 4. Semantic layer | Not started |
 | 5. Orchestration | Not started (Compose services already defined) |
 | 6. Serving | Not started |
 | 7. Quality & CI | Not started |
 
 ---
+
+## 2026-10-20
+
+### Added
+- Snapshot `snap_town_monthly_prices` (SCD Type 2 of the monthly mart, `check` strategy, schema `snapshots`) and singular test `assert_snap_town_monthly_prices_one_current_version` (D-31).
+
+### Verified
+- Simulated revision (Bedok 4-room, 2026-08: count 68 → 69, median 722,500 → 727,500): the snapshot closed the old version and opened a new current one. Simulation history then dropped and the snapshot restarted from real data.
+- Full `dbt build`: 49 nodes (1 seed, 4 models, 1 snapshot, 38 data tests, 5 unit tests) pass with no warnings in about 2 seconds. The incremental run inserted 9,429 rows (the lookback window) instead of 241,597. Snapshot starts with 13,253 current versions.
+- **Phase 3 complete.**
 
 ## 2026-10-19
 

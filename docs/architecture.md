@@ -15,6 +15,7 @@ flowchart LR
         AGG[(marts.mart_town_monthly_prices<br/>table)]
         SEED[(seeds.town_regions<br/>CSV seed)]
         DIM[(marts.dim_town<br/>table)]
+        SNAP[(snapshots.snap_town_monthly_prices<br/>SCD Type 2)]
     end
 
     API -->|ingestion/load_hdb_resale.py<br/>paginate · TRUNCATE + COPY| RAW
@@ -24,6 +25,7 @@ flowchart LR
     STG -->|distinct towns| DIM
     SEED -->|region| DIM
     DIM -->|region label| AGG
+    AGG -->|dbt snapshot: record changes| SNAP
     AGG -.->|Phase 6| DASH[Streamlit dashboard]
 
     AF[Airflow · Phase 5] -.->|monthly: ingest, then dbt build| API
@@ -54,6 +56,7 @@ The warehouse database has one schema per layer. Each layer only reads from the 
 | `staging` | dbt (`models/staging/`) | view | One model per source table: rename, cast types, parse text fields. No joins or aggregation. |
 | `marts` | dbt (`models/marts/`) | table | Business-facing models the dashboard reads: facts, dimensions and aggregates. |
 | `seeds` | dbt (`seeds/*.csv`) | table | Hand-maintained reference data, versioned in git. Currently `town_regions`. |
+| `snapshots` | dbt (`snapshots/`) | snapshot (SCD Type 2) | History of changes, appended on every run. **Can't be rebuilt; never drop.** |
 
 Schema names come from `+schema:` in `dbt_project.yml`. `macros/generate_schema_name.sql` makes dbt use them as-is (`staging`, not dbt's default `analytics_staging`). The profile's default schema, `analytics`, only applies to models with no `+schema`.
 
@@ -66,6 +69,7 @@ Schema names come from `+schema:` in `dbt_project.yml`. `macros/generate_schema_
 | `fct_resale_transactions` | transaction | `transaction_id` | **Incremental** (`delete+insert` on `transaction_month`): each run replaces the last `lookback_months` (var, default 3) already loaded plus newer months. Explicit column list (public interface). Adds `transaction_year`, `flat_age_years`, `remaining_lease_years`. |
 | `town_regions` (seed) | town | `town` | Town → URA planning region (5 regions). Add a row when a new town appears. |
 | `dim_town` | town | `town` | Every town found in the data, left-joined to the seed for `region`. |
+| `snap_town_monthly_prices` (snapshot) | version of a town × flat_type × month | (`transaction_month`, `town`, `flat_type`) + `dbt_valid_from` | `check` strategy on count and medians; `hard_deletes: invalidate`. Current version: `dbt_valid_to IS NULL`. Measures revisions to recent months. |
 | `mart_town_monthly_prices` | town × flat_type × month | (`transaction_month`, `town`, `flat_type`) | `region` (from `dim_town`, a filter label), `transaction_count`, `median_resale_price`, `median_price_per_sqm`. Medians can't be re-aggregated across towns, regions or types. |
 
 ## Data quality checks
@@ -79,6 +83,7 @@ Schema names come from `+schema:` in `dbt_project.yml`. `macros/generate_schema_
 | `town_regions` seed | `not_null` + `unique` on `town`; `region` in the 5 URA regions. |
 | `dim_town` | Primary key `town`; `not_null` region (**error**): a town missing from the seed stops the build until its row is added. |
 | Unit tests (logic, not data) | `fct_resale_transactions`: the incremental lookback window selects exactly the right months. `stg_hdb_resale`: all 4 `remaining_lease` formats; storey, price and `price_per_sqm` parsing. `mart_town_monthly_prices`: median not average, even-count midpoint. `dim_town`: a town missing from the seed keeps its row with a NULL region. Defined in `_staging_unit_tests.yml` / `_marts_unit_tests.yml`. |
+| `snap_town_monthly_prices` | Singular test: at most one current version per key. |
 | `mart_town_monthly_prices` | Primary key (`transaction_month`, `town`, `flat_type`) enforces the grain; `not_null` on the other columns; singular reconciliation test (`sum(transaction_count)` = fact row count). |
 
 ## Documentation in dbt
@@ -128,6 +133,7 @@ Every setting lives in `.env` (gitignored; template in `.env.example`) and is re
 │   ├── macros/               # median(); generate_schema_name override; _macros.yml docs
 │   ├── models/staging/       # _sources.yml, stg_ models, _staging_models.yml
 │   ├── models/marts/         # fct_ / mart_ models, _marts_models.yml
+│   ├── snapshots/            # SCD Type 2 snapshot definitions (YAML)
 │   └── tests/                # dbt singular tests (SQL returning bad rows)
 └── docs/                     # this documentation
 ```

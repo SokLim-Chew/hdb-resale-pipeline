@@ -1,0 +1,17 @@
+version: 2
+
+snapshots:
+  - name: snap_town_monthly_prices
+    relation: ref('mart_town_monthly_prices')
+    description: >
+      SCD Type 2 history of mart_town_monthly_prices: each time a month's count or
+      medians change between loads (late-registered sales, corrections), the old
+      version is closed (dbt_valid_to) and a new one opened. Used to measure how far
+      back revisions reach, to tune the incremental lookback (D-30), and to audit
+      restatements. History can't be rebuilt: never drop this table.
+    config:
+      schema: snapshots
+      unique_key: [transaction_month, town, flat_type]
+      strategy: check
+      check_cols: [transaction_count, median_resale_price, median_price_per_sqm]
+      hard_deletes: invalidate   # a group that disappears gets its version closed
